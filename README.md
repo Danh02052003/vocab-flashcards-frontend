@@ -1,70 +1,92 @@
-# Getting Started with Create React App
+# Vocab Flashcards Frontend (CRA)
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+Frontend React (Create React App, JavaScript + JSX) cho backend FastAPI vocabulary app.
 
-## Available Scripts
+## 1. Yêu cầu
+- Node.js 18+
+- Backend đang chạy (mặc định `http://localhost:8000`)
+- Backend phải truy cập được:
+  - `GET /openapi.json`
+  - `GET /docs`
 
-In the project directory, you can run:
+## 2. Cấu hình môi trường
+Tạo file `.env` từ `.env.example`:
 
-### `npm start`
+```bash
+cp .env.example .env
+```
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+Nội dung:
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+```env
+REACT_APP_API_BASE_URL=http://localhost:8000
+```
 
-### `npm test`
+## 3. Chạy ứng dụng
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+```bash
+npm install
+npm start
+```
 
-### `npm run build`
+Mở: `http://localhost:3000`
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+## 4. Build production
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+```bash
+npm run build
+```
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+## 5. Kiến trúc chính
 
-### `npm run eject`
+```text
+src/
+  api/
+    base.js
+    openapi.js
+    client.js
+  pages/
+    Add.jsx
+    Review.jsx
+    List.jsx
+    Sync.jsx
+    Advanced.jsx
+  components/
+    Nav.jsx
+    Toast.jsx
+    Spinner.jsx
+    ErrorState.jsx
+    ChipInput.jsx
+    GradeBar.jsx
+    Modal.jsx
+  utils/
+    fuzzy.js
+    date.js
+    storage.js
+  App.jsx
+  index.js
+```
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+## 6. Cách hoạt động OpenAPI-driven
+- App tự fetch `{{BASE_URL}}/openapi.json` khi mở.
+- Tự discover các endpoint core (`vocab`, `review`, `session`, `ai`, `sync`) theo tag/path/operationId.
+- Nếu fetch OpenAPI lỗi: hiển thị lỗi thân thiện + nút `Retry` + BASE_URL hiện tại.
+- Trang `Advanced` auto-generate explorer/try-it để gọi toàn bộ endpoint backend (kể cả endpoint mới).
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+## 7. Mô tả trang
+- `Add`: thêm từ, AI enrich, merge gợi ý AI an toàn.
+- `Review`: session hôm nay, mode flip/mcq/typing, phím `0..5` để chấm nhanh.
+- `List`: search/filter, xem chỉ số SRS, edit/delete.
+- `Sync`: export/import JSON sync.
+- `Advanced`: OpenAPI explorer + execute request.
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+## 8. Lưu ý debug nhanh
+- Nếu báo không tải được OpenAPI:
+  1. Kiểm tra backend có chạy không.
+  2. Mở thử `http://localhost:8000/openapi.json` trực tiếp.
+  3. Kiểm tra `REACT_APP_API_BASE_URL` trong `.env`.
+- Nếu CORS lỗi: xác nhận backend đã allow `http://localhost:3000`.
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+## 9. Không commit secrets
+- `.env` đã nằm trong `.gitignore`.
+- Chỉ commit `.env.example`.
