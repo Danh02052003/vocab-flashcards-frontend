@@ -13,9 +13,9 @@ export default function Nav({ page, onChange }) {
     <>
       <header className="top-nav" aria-label="Top navigation">
         <div className="brand-block">
-          <div className="brand-dot" />
+          <img className="brand-logo" src="/image/icon_vocab.png" alt="Voucab logo" />
           <div>
-            <div className="brand-title">Vocab Flow</div>
+            <div className="brand-title">Voucab</div>
             <small className="brand-sub">Microlearning mode</small>
           </div>
         </div>

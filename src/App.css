@@ -23,12 +23,13 @@
   gap: 10px;
 }
 
-.brand-dot {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--accent-blue), var(--accent-green));
-  box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent-blue) 22%, transparent);
+.brand-logo {
+  width: 64px;
+  height: 64px;
+  border-radius: 10px;
+  object-fit: cover;
+  border: 1px solid var(--line);
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent-blue) 18%, transparent);
 }
 
 .brand-title {
