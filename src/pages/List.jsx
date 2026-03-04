@@ -263,11 +263,11 @@ export default function List({ api, onToast }) {
 
             <div className="field-row two">
               <div className="field">
-                <label>Example EN</label>
+                <label>Example 1</label>
                 <textarea value={editing.exampleEn} rows={3} onChange={(e) => updateEditing("exampleEn", e.target.value)} />
               </div>
               <div className="field">
-                <label>Example VI</label>
+                <label>Example 2</label>
                 <textarea value={editing.exampleVi} rows={3} onChange={(e) => updateEditing("exampleVi", e.target.value)} />
               </div>
             </div>

@@ -513,11 +513,11 @@ export default function Add({ api, onToast }) {
 
           <div className="field-row two">
             <div className="field">
-              <label>Example EN</label>
+              <label>Example 1</label>
               <textarea value={form.exampleEn} onChange={(e) => update("exampleEn", e.target.value)} rows={3} />
             </div>
             <div className="field">
-              <label>Example VI</label>
+              <label>Example 2</label>
               <textarea value={form.exampleVi} onChange={(e) => update("exampleVi", e.target.value)} rows={3} />
             </div>
           </div>

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { normalizeBaseUrl, DEFAULT_BASE_URL } from "./api/base";
 import { fetchOpenApi } from "./api/openapi";
 import { createApiClient } from "./api/client";
@@ -9,6 +9,8 @@ import Toast from "./components/Toast";
 import Spinner from "./components/Spinner";
 import ErrorState from "./components/ErrorState";
 import Onboarding from "./components/Onboarding";
+import StudyLock from "./components/StudyLock";
+import StrictHelper from "./components/StrictHelper";
 
 import Home from "./pages/Home";
 import Add from "./pages/Add";
@@ -23,6 +25,7 @@ const VALID_PAGES = ["home", "review", "add", "list", "sync", "advanced"];
 const PREFS_KEY = "ui_prefs";
 const STATS_KEY = "learning_stats";
 const ONBOARD_KEY = "onboarding_done";
+const STUDY_LOCK_KEY = "study_lock_meta";
 
 const ONBOARD_SLIDES = [
   {
@@ -87,6 +90,14 @@ function ConfettiLayer({ show }) {
 }
 
 export default function App() {
+  const queryParams = new URLSearchParams(window.location.search);
+  if (queryParams.get("mode") === "helper") {
+    return <StrictHelper />;
+  }
+  return <MainApp forceStudyLock={queryParams.get("forceStudyLock") === "1"} />;
+}
+
+function MainApp({ forceStudyLock }) {
   const baseUrl = useMemo(() => normalizeBaseUrl(DEFAULT_BASE_URL), []);
   const [page, setPage] = useState(pageFromHash());
 
@@ -99,6 +110,8 @@ export default function App() {
     getJson(PREFS_KEY, {
       darkMode: false,
       highContrast: false,
+      studyLockEnabled: true,
+      studyIntervalMinutes: 45,
     })
   );
 
@@ -115,6 +128,17 @@ export default function App() {
   const [showOnboarding, setShowOnboarding] = useState(() => !getJson(ONBOARD_KEY, false));
   const [onboardingStep, setOnboardingStep] = useState(0);
   const [showConfetti, setShowConfetti] = useState(false);
+  const [studyLock, setStudyLock] = useState({ open: false, card: null, pool: [] });
+  const [studyMeta, setStudyMeta] = useState(() =>
+    getJson(STUDY_LOCK_KEY, {
+      lastPromptAt: Date.now(),
+    })
+  );
+  const studyIntervalMs = useMemo(() => {
+    const minutesRaw = Number(prefs?.studyIntervalMinutes || 45);
+    const minutes = Number.isFinite(minutesRaw) ? Math.max(5, Math.min(240, minutesRaw)) : 45;
+    return minutes * 60 * 1000;
+  }, [prefs?.studyIntervalMinutes]);
 
   const { items, push, dismiss } = useToasts();
 
@@ -152,6 +176,100 @@ export default function App() {
   useEffect(() => {
     setJson(STATS_KEY, stats);
   }, [stats]);
+
+  useEffect(() => {
+    setJson(STUDY_LOCK_KEY, studyMeta);
+  }, [studyMeta]);
+
+  const fetchStudyPool = useCallback(async () => {
+    if (!client) return [];
+
+    const collect = (arr) => (Array.isArray(arr) ? arr.filter((x) => x?.id && x?.term) : []);
+    let pool = [];
+
+    if (client.has("sessionToday")) {
+      try {
+        const s = await client.sessionToday(50);
+        pool = [...collect(s?.todayNew), ...collect(s?.review)];
+      } catch (_) {
+        // fallback below
+      }
+    }
+
+    if (!pool.length && client.has("listVocab")) {
+      try {
+        const data = await client.listVocab({ page: 1, limit: 100 });
+        pool = collect(data);
+      } catch (_) {
+        // keep empty
+      }
+    }
+
+    const seen = new Set();
+    return pool.filter((item) => {
+      if (seen.has(item.id)) return false;
+      seen.add(item.id);
+      return true;
+    });
+  }, [client]);
+
+  const triggerStudyLock = useCallback(async ({ manual = false } = {}) => {
+    if (!client || studyLock.open) return;
+    const pool = await fetchStudyPool();
+    if (!pool.length) {
+      if (manual) push("No vocabulary found to start study lock.", "warning");
+      return;
+    }
+
+    const card = pool[Math.floor(Math.random() * pool.length)];
+    setStudyLock({ open: true, card, pool });
+    setStudyMeta({ lastPromptAt: Date.now() });
+
+    if (typeof window !== "undefined") {
+      try {
+        window.focus();
+      } catch (_) {
+        // ignore
+      }
+    }
+  }, [client, studyLock.open, fetchStudyPool, push]);
+
+  useEffect(() => {
+    if (!prefs.studyLockEnabled || !client) return undefined;
+
+    const ensureStartAt = Number(studyMeta?.lastPromptAt || 0);
+    if (!ensureStartAt) {
+      setStudyMeta({ lastPromptAt: Date.now() });
+    }
+
+    const timer = window.setInterval(() => {
+      if (studyLock.open) return;
+      const last = Number(studyMeta?.lastPromptAt || 0);
+      if (!last) return;
+      if (Date.now() - last >= studyIntervalMs) {
+        void triggerStudyLock();
+      }
+    }, 30 * 1000);
+
+    return () => window.clearInterval(timer);
+  }, [prefs.studyLockEnabled, client, studyLock.open, studyMeta?.lastPromptAt, triggerStudyLock, studyIntervalMs]);
+
+  useEffect(() => {
+    const onBeforeUnload = (event) => {
+      if (!studyLock.open) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [studyLock.open]);
+
+  useEffect(() => {
+    if (!forceStudyLock || !client) return;
+    void triggerStudyLock({ manual: true });
+    const cleanUrl = `${window.location.pathname}${window.location.hash || "#home"}`;
+    window.history.replaceState({}, "", cleanUrl);
+  }, [forceStudyLock, client, triggerStudyLock]);
 
   const changePage = (next) => {
     setPage(next);
@@ -226,6 +344,43 @@ export default function App() {
             <button type="button" className="btn" onClick={() => setPrefs((p) => ({ ...p, highContrast: !p.highContrast }))}>
               {prefs.highContrast ? "Normal" : "High Contrast"}
             </button>
+            <button
+              type="button"
+              className="btn"
+              onClick={() => {
+                const helperUrl = `${window.location.origin}${window.location.pathname}?mode=helper`;
+                const helperWindow = window.open(helperUrl, "_blank", "noopener,noreferrer");
+                if (!helperWindow) {
+                  push("Popup blocked. Please allow popups and try again.", "warning");
+                } else {
+                  helperWindow.focus();
+                  push("Strict helper tab opened.", "success");
+                }
+              }}
+            >
+              Open Strict Helper
+            </button>
+            <input
+              type="number"
+              min="5"
+              max="240"
+              step="5"
+              value={prefs.studyIntervalMinutes}
+              onChange={(e) =>
+                setPrefs((p) => ({
+                  ...p,
+                  studyIntervalMinutes: Number(e.target.value || 45),
+                }))
+              }
+              title="Study interval (minutes)"
+              style={{ width: 90 }}
+            />
+            <button type="button" className="btn" onClick={() => setPrefs((p) => ({ ...p, studyLockEnabled: !p.studyLockEnabled }))}>
+              {prefs.studyLockEnabled ? "Study Lock: ON" : "Study Lock: OFF"}
+            </button>
+            <button type="button" className="btn" onClick={() => triggerStudyLock({ manual: true })}>
+              Test Study Lock
+            </button>
           </div>
         </div>
 
@@ -260,6 +415,17 @@ export default function App() {
       />
 
       <ConfettiLayer show={showConfetti} />
+      <StudyLock
+        open={studyLock.open}
+        card={studyLock.card}
+        pool={studyLock.pool}
+        api={client}
+        onToast={push}
+        onUnlock={() => {
+          setStudyLock({ open: false, card: null, pool: [] });
+          setStudyMeta({ lastPromptAt: Date.now() });
+        }}
+      />
       <Toast items={items} onDismiss={dismiss} />
     </div>
   );
