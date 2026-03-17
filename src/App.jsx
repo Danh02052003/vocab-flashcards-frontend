@@ -2,9 +2,10 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { normalizeBaseUrl, DEFAULT_BASE_URL } from "./api/base";
 import { fetchOpenApi } from "./api/openapi";
 import { createApiClient } from "./api/client";
-import { getJson, setJson } from "./utils/storage";
+import { getJson, getText, removeKey, setJson, setText } from "./utils/storage";
 
 import Nav from "./components/Nav";
+import AuthPanel from "./components/AuthPanel";
 import Toast from "./components/Toast";
 import Spinner from "./components/Spinner";
 import ErrorState from "./components/ErrorState";
@@ -26,6 +27,8 @@ const PREFS_KEY = "ui_prefs";
 const STATS_KEY = "learning_stats";
 const ONBOARD_KEY = "onboarding_done";
 const STUDY_LOCK_KEY = "study_lock_meta";
+const AUTH_TOKEN_KEY = "auth_token";
+const AUTH_USER_KEY = "auth_user";
 
 const ONBOARD_SLIDES = [
   {
@@ -48,6 +51,10 @@ const ONBOARD_SLIDES = [
 function pageFromHash() {
   const hash = window.location.hash.replace(/^#/, "").trim().toLowerCase();
   return VALID_PAGES.includes(hash) ? hash : "home";
+}
+
+function statsStorageKey(user) {
+  return user?.id ? `${STATS_KEY}:${user.id}` : STATS_KEY;
 }
 
 function getTodayKey() {
@@ -105,6 +112,7 @@ function MainApp({ forceStudyLock }) {
   const [error, setError] = useState("");
   const [schema, setSchema] = useState(null);
   const [client, setClient] = useState(null);
+  const [schemaRefreshedForAuth, setSchemaRefreshedForAuth] = useState(false);
 
   const [prefs, setPrefs] = useState(() =>
     getJson(PREFS_KEY, {
@@ -128,6 +136,11 @@ function MainApp({ forceStudyLock }) {
   const [showOnboarding, setShowOnboarding] = useState(() => !getJson(ONBOARD_KEY, false));
   const [onboardingStep, setOnboardingStep] = useState(0);
   const [showConfetti, setShowConfetti] = useState(false);
+  const [authSession, setAuthSession] = useState(() => ({
+    token: getText(AUTH_TOKEN_KEY, ""),
+    user: getJson(AUTH_USER_KEY, null),
+  }));
+  const [authChecking, setAuthChecking] = useState(true);
   const [studyLock, setStudyLock] = useState({ open: false, card: null, pool: [] });
   const [studyMeta, setStudyMeta] = useState(() =>
     getJson(STUDY_LOCK_KEY, {
@@ -142,7 +155,7 @@ function MainApp({ forceStudyLock }) {
 
   const { items, push, dismiss } = useToasts();
 
-  const loadOpenApi = async (force = false) => {
+  const loadOpenApi = useCallback(async (force = false) => {
     setLoading(true);
     setError("");
     try {
@@ -154,12 +167,47 @@ function MainApp({ forceStudyLock }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [baseUrl]);
 
   useEffect(() => {
     loadOpenApi(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [loadOpenApi]);
+
+  useEffect(() => {
+    if (!client || schemaRefreshedForAuth) return;
+    const hasAuth = client.has("authLogin") && client.has("authRegister");
+    if (hasAuth) return;
+    setSchemaRefreshedForAuth(true);
+    void loadOpenApi(true);
+  }, [client, schemaRefreshedForAuth, loadOpenApi]);
+
+  useEffect(() => {
+    let active = true;
+    const syncAuth = async () => {
+      if (!client) return;
+      if (!authSession?.token || !client.has("authMe")) {
+        if (active) setAuthChecking(false);
+        return;
+      }
+      try {
+        const user = await client.authMe();
+        if (!active) return;
+        setJson(AUTH_USER_KEY, user);
+        setAuthSession((prev) => ({ ...(prev || {}), user }));
+      } catch (_) {
+        if (!active) return;
+        removeKey(AUTH_TOKEN_KEY);
+        removeKey(AUTH_USER_KEY);
+        setAuthSession({ token: "", user: null });
+      } finally {
+        if (active) setAuthChecking(false);
+      }
+    };
+    void syncAuth();
+    return () => {
+      active = false;
+    };
+  }, [client, authSession?.token]);
 
   useEffect(() => {
     const onHashChange = () => setPage(pageFromHash());
@@ -174,8 +222,23 @@ function MainApp({ forceStudyLock }) {
   }, [prefs]);
 
   useEffect(() => {
-    setJson(STATS_KEY, stats);
-  }, [stats]);
+    setJson(statsStorageKey(authSession?.user), stats);
+  }, [stats, authSession?.user]);
+
+  useEffect(() => {
+    setStats(
+      getJson(
+        statsStorageKey(authSession?.user),
+        {
+          streak: 0,
+          lastReviewDate: "",
+          totalReviewed: 0,
+          totalCorrect: 0,
+          accuracy: 0,
+        }
+      )
+    );
+  }, [authSession?.user]);
 
   useEffect(() => {
     setJson(STUDY_LOCK_KEY, studyMeta);
@@ -276,6 +339,21 @@ function MainApp({ forceStudyLock }) {
     window.location.hash = next;
   };
 
+  const logout = useCallback(async () => {
+    try {
+      if (client?.has("authLogout")) {
+        await client.authLogout();
+      }
+    } catch (_) {
+      // ignore logout errors and clear local session
+    } finally {
+      removeKey(AUTH_TOKEN_KEY);
+      removeKey(AUTH_USER_KEY);
+      setAuthSession({ token: "", user: null });
+      setStudyLock({ open: false, card: null, pool: [] });
+    }
+  }, [client]);
+
   const closeOnboarding = () => {
     setShowOnboarding(false);
     setJson(ONBOARD_KEY, true);
@@ -329,62 +407,72 @@ function MainApp({ forceStudyLock }) {
 
   return (
     <div className="app-shell">
-      <Nav page={page} onChange={changePage} />
+      {authSession?.token ? <Nav page={page} onChange={changePage} onLogout={logout} /> : null}
 
       <main className="content">
-        <div className="utility-bar">
-          <div className="meta-line">
-            <span className="mono">{baseUrl}</span>
-            {client ? <span>{Object.values(client.core || {}).filter(Boolean).length} core endpoints found</span> : null}
-          </div>
-          <div className="utility-actions">
-            <button type="button" className="btn" onClick={() => setPrefs((p) => ({ ...p, darkMode: !p.darkMode }))}>
-              {prefs.darkMode ? "Light" : "Dark"}
-            </button>
-            <button type="button" className="btn" onClick={() => setPrefs((p) => ({ ...p, highContrast: !p.highContrast }))}>
-              {prefs.highContrast ? "Normal" : "High Contrast"}
-            </button>
-            <button
-              type="button"
-              className="btn"
-              onClick={() => {
-                const helperUrl = `${window.location.origin}${window.location.pathname}?mode=helper`;
-                const helperWindow = window.open(helperUrl, "_blank", "noopener,noreferrer");
-                if (!helperWindow) {
-                  push("Popup blocked. Please allow popups and try again.", "warning");
-                } else {
-                  helperWindow.focus();
-                  push("Strict helper tab opened.", "success");
+        {authSession?.token ? (
+          <div className="utility-bar">
+            <div className="meta-line">
+              <span className="mono">{baseUrl}</span>
+              {client ? <span>{Object.values(client.core || {}).filter(Boolean).length} core endpoints found</span> : null}
+              {authSession?.user?.email ? <span>{authSession.user.email}</span> : null}
+            </div>
+            <div className="utility-actions">
+              <button type="button" className="btn" onClick={() => setPrefs((p) => ({ ...p, darkMode: !p.darkMode }))}>
+                {prefs.darkMode ? "Light" : "Dark"}
+              </button>
+              <button type="button" className="btn" onClick={() => setPrefs((p) => ({ ...p, highContrast: !p.highContrast }))}>
+                {prefs.highContrast ? "Normal" : "High Contrast"}
+              </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => {
+                  const helperUrl = `${window.location.origin}${window.location.pathname}?mode=helper`;
+                  const helperWindow = window.open(helperUrl, "_blank", "noopener,noreferrer");
+                  if (!helperWindow) {
+                    push("Popup blocked. Please allow popups and try again.", "warning");
+                  } else {
+                    helperWindow.focus();
+                    push("Strict helper tab opened.", "success");
+                  }
+                }}
+              >
+                Open Strict Helper
+              </button>
+              <input
+                type="number"
+                min="5"
+                max="240"
+                step="5"
+                value={prefs.studyIntervalMinutes}
+                onChange={(e) =>
+                  setPrefs((p) => ({
+                    ...p,
+                    studyIntervalMinutes: Number(e.target.value || 45),
+                  }))
                 }
-              }}
-            >
-              Open Strict Helper
-            </button>
-            <input
-              type="number"
-              min="5"
-              max="240"
-              step="5"
-              value={prefs.studyIntervalMinutes}
-              onChange={(e) =>
-                setPrefs((p) => ({
-                  ...p,
-                  studyIntervalMinutes: Number(e.target.value || 45),
-                }))
-              }
-              title="Study interval (minutes)"
-              style={{ width: 90 }}
-            />
-            <button type="button" className="btn" onClick={() => setPrefs((p) => ({ ...p, studyLockEnabled: !p.studyLockEnabled }))}>
-              {prefs.studyLockEnabled ? "Study Lock: ON" : "Study Lock: OFF"}
-            </button>
-            <button type="button" className="btn" onClick={() => triggerStudyLock({ manual: true })}>
-              Test Study Lock
-            </button>
+                title="Study interval (minutes)"
+                style={{ width: 90 }}
+              />
+              <button type="button" className="btn" onClick={() => setPrefs((p) => ({ ...p, studyLockEnabled: !p.studyLockEnabled }))}>
+                {prefs.studyLockEnabled ? "Study Lock: ON" : "Study Lock: OFF"}
+              </button>
+              <button type="button" className="btn" onClick={() => triggerStudyLock({ manual: true })}>
+                Test Study Lock
+              </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={logout}
+              >
+                Logout
+              </button>
+            </div>
           </div>
-        </div>
+        ) : null}
 
-        {loading ? <Spinner label="Reading OpenAPI..." /> : null}
+        {loading || authChecking ? <Spinner label={loading ? "Reading OpenAPI..." : "Checking session..."} /> : null}
 
         {!loading && error ? (
           <ErrorState title="Backend connection failed" message={error} actionLabel="Retry" onAction={() => loadOpenApi(true)}>
@@ -397,10 +485,26 @@ function MainApp({ forceStudyLock }) {
           </ErrorState>
         ) : null}
 
-        {!loading && !error ? renderPage() : null}
+        {!loading && !error && !authChecking && !authSession?.token ? (
+          client?.has("authLogin") && client?.has("authRegister") ? (
+            <AuthPanel
+              api={client}
+              onToast={push}
+              onAuth={(data) => {
+                setText(AUTH_TOKEN_KEY, data.token);
+                setJson(AUTH_USER_KEY, data.user);
+                setAuthSession({ token: data.token, user: data.user });
+              }}
+            />
+          ) : (
+            <ErrorState title="Auth endpoints missing" message="Backend does not expose /auth/login and /auth/register." />
+          )
+        ) : null}
+
+        {!loading && !error && !authChecking && authSession?.token ? renderPage() : null}
       </main>
 
-      <button type="button" className="fab-add" onClick={() => changePage("add")}>
+      <button type="button" className="fab-add" onClick={() => changePage("add")} disabled={!authSession?.token} style={{ display: authSession?.token ? "block" : "none" }}>
         Add
       </button>
 

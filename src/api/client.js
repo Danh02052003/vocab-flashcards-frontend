@@ -94,6 +94,18 @@ export function discoverCoreOperations(schema) {
   const operations = flattenOperations(schema);
 
   const core = {
+    authRegister: findBest(operations, [
+      { method: "POST", pathIncludes: ["auth", "register"] },
+    ]),
+    authLogin: findBest(operations, [
+      { method: "POST", pathIncludes: ["auth", "login"] },
+    ]),
+    authLogout: findBest(operations, [
+      { method: "POST", pathIncludes: ["auth", "logout"] },
+    ]),
+    authMe: findBest(operations, [
+      { method: "GET", pathIncludes: ["auth", "me"] },
+    ]),
     health: findBest(operations, [
       { method: "GET", preferPathExact: "/health", pathIncludes: ["health"] },
     ]),
@@ -266,6 +278,18 @@ export function createApiClient({ schema, baseUrl = DEFAULT_BASE_URL }) {
     },
     async health() {
       return callOperation({ baseUrl, op: requireOp("health") });
+    },
+    async authRegister(payload) {
+      return callOperation({ baseUrl, op: requireOp("authRegister"), body: payload });
+    },
+    async authLogin(payload) {
+      return callOperation({ baseUrl, op: requireOp("authLogin"), body: payload });
+    },
+    async authLogout() {
+      return callOperation({ baseUrl, op: requireOp("authLogout") });
+    },
+    async authMe() {
+      return callOperation({ baseUrl, op: requireOp("authMe") });
     },
     async addVocab(payload) {
       return callOperation({ baseUrl, op: requireOp("addVocab"), body: payload });

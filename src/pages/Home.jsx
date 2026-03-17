@@ -19,11 +19,21 @@ function CircleProgress({ value }) {
 export default function Home({ api, stats, onNavigate }) {
   const [loading, setLoading] = useState(false);
   const [todayInfo, setTodayInfo] = useState({ todayNew: 0, review: 0 });
+  const [fireAnimation, setFireAnimation] = useState(null);
+  const [LottieComponent, setLottieComponent] = useState(null);
 
   const streakActive = useMemo(() => {
     const today = new Date().toISOString().slice(0, 10);
     return stats.lastReviewDate === today;
   }, [stats.lastReviewDate]);
+
+  const streakPaletteClass = useMemo(() => {
+    const streak = Number(stats.streak || 0);
+    if (streak > 50) return "streak-palette-50";
+    if (streak > 20) return "streak-palette-20";
+    if (streak > 10) return "streak-palette-10";
+    return "streak-palette-base";
+  }, [stats.streak]);
 
   useEffect(() => {
     const load = async () => {
@@ -42,6 +52,32 @@ export default function Home({ api, stats, onNavigate }) {
     load();
   }, [api]);
 
+  useEffect(() => {
+    let active = true;
+    const loadAnimation = async () => {
+      try {
+        const [response, lottieModule] = await Promise.all([
+          fetch("/animation/Fire.json"),
+          import("lottie-react"),
+        ]);
+        const data = await response.json();
+        if (active) {
+          setFireAnimation(data);
+          setLottieComponent(() => lottieModule.default);
+        }
+      } catch (_) {
+        if (active) {
+          setFireAnimation(null);
+          setLottieComponent(null);
+        }
+      }
+    };
+    loadAnimation();
+    return () => {
+      active = false;
+    };
+  }, []);
+
   return (
     <div className="page-grid one">
       <section className="card hero-card">
@@ -50,28 +86,41 @@ export default function Home({ api, stats, onNavigate }) {
           <p>Short sessions, instant feedback, and consistent streaks for IELTS growth.</p>
           <div className="quick-grid">
             <button type="button" className="quick-btn" onClick={() => onNavigate("review")}>
-              Start review
-              <small>{todayInfo.review} cards due</small>
+              <span className="quick-btn-title">Start review</span>
+              <small className="quick-btn-meta">{todayInfo.review} cards due</small>
             </button>
             <button type="button" className="quick-btn" onClick={() => onNavigate("add")}>
-              Add vocab
-              <small>Fast import + AI assist</small>
+              <span className="quick-btn-title">Add vocab</span>
+              <small className="quick-btn-meta">Fast import + AI assist</small>
             </button>
             <button type="button" className="quick-btn" onClick={() => onNavigate("list")}>
-              Browse cards
-              <small>Edit tags and examples</small>
+              <span className="quick-btn-title">Browse cards</span>
+              <small className="quick-btn-meta">Edit tags and examples</small>
             </button>
             <button type="button" className="quick-btn" onClick={() => onNavigate("sync")}>
-              Backup sync
-              <small>Export or import JSON</small>
+              <span className="quick-btn-title">Backup sync</span>
+              <small className="quick-btn-meta">Export or import JSON</small>
             </button>
           </div>
         </div>
 
         <div className="hero-right">
-          <div className={`streak-flame ${streakActive ? "active" : ""}`}>
-            <span>{stats.streak || 0}</span>
-            <small>day streak</small>
+          <div className={`streak-flame ${streakActive ? "active" : ""} ${streakPaletteClass}`}>
+            {fireAnimation && LottieComponent ? (
+              <LottieComponent
+                className="streak-flame-lottie"
+                animationData={fireAnimation}
+                loop
+                autoplay
+                aria-hidden="true"
+              />
+            ) : (
+              <div className="streak-flame-fallback" aria-hidden="true" />
+            )}
+            <div className="streak-flame-count">
+              <span>{stats.streak || 0}</span>
+              <small>day streak</small>
+            </div>
           </div>
           <CircleProgress value={stats.accuracy || 0} />
         </div>

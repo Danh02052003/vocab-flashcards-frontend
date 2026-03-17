@@ -29,3 +29,20 @@ export function removeKey(key) {
     // ignore storage failures
   }
 }
+
+export function getText(key, fallback = "") {
+  try {
+    const raw = window.localStorage.getItem(keyOf(key));
+    return raw == null ? fallback : String(raw);
+  } catch (_) {
+    return fallback;
+  }
+}
+
+export function setText(key, value) {
+  try {
+    window.localStorage.setItem(keyOf(key), String(value));
+  } catch (_) {
+    // ignore storage failures
+  }
+}

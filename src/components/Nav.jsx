@@ -8,12 +8,12 @@ const MAIN_ITEMS = [
   { id: "sync", label: "Sync", icon: "SY" },
 ];
 
-export default function Nav({ page, onChange }) {
+export default function Nav({ page, onChange, onLogout }) {
   return (
     <>
       <header className="top-nav" aria-label="Top navigation">
         <div className="brand-block">
-          <img className="brand-logo" src="/image/icon_vocab.png" alt="Voucab logo" />
+          <img className="brand-logo" src="/logo/logo192.png" alt="Voucab logo" />
           <div>
             <div className="brand-title">Voucab</div>
             <small className="brand-sub">Microlearning mode</small>
@@ -37,6 +37,9 @@ export default function Nav({ page, onChange }) {
             onClick={() => onChange("advanced")}
           >
             Advanced
+          </button>
+          <button type="button" className="nav-pill nav-pill-logout" onClick={onLogout}>
+            Logout
           </button>
         </nav>
       </header>

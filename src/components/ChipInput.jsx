@@ -17,7 +17,7 @@ export default function ChipInput({
   label,
   values,
   onChange,
-  placeholder = "Nh岷璸 r峄搃 Enter",
+  placeholder = "Type and press Enter",
   hint,
 }) {
   const [draft, setDraft] = useState("");

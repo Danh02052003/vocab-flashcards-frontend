@@ -3,12 +3,12 @@
   "name": "Voucab Vocabulary App",
   "icons": [
     {
-      "src": "image/icon_vocab.png",
+      "src": "logo/logo192.png",
       "type": "image/png",
       "sizes": "192x192"
     },
     {
-      "src": "image/icon_vocab.png",
+      "src": "logo/logo512.png",
       "type": "image/png",
       "sizes": "512x512"
     }

@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Spinner from "../components/Spinner";
-import GradeBar from "../components/GradeBar";
 import { nearMatch } from "../utils/fuzzy";
 
 function vibrate(ms) {
@@ -65,6 +64,18 @@ function getPrompt(card, questionType) {
   return card.term;
 }
 
+function getCorrectAnswer(card, questionType) {
+  if (!card) return "";
+  if (questionType === "meaning_to_term") return card.term || "";
+  return (card.meanings || []).join("; ");
+}
+
+function gradeForOutcome(mode, isCorrect) {
+  if (mode === "typing") return isCorrect ? 5 : 1;
+  if (mode === "mcq") return isCorrect ? 4 : 1;
+  return isCorrect ? 4 : 1;
+}
+
 function CircleProgress({ value, label }) {
   const safe = Math.max(0, Math.min(100, Number(value) || 0));
   const style = { background: `conic-gradient(var(--progress-a) ${safe * 3.6}deg, var(--surface-3) 0deg)` };
@@ -91,7 +102,8 @@ export default function Review({ api, onToast, onSessionComplete }) {
   const [mcqAnswer, setMcqAnswer] = useState("");
   const [judgeResult, setJudgeResult] = useState(null);
   const [submitting, setSubmitting] = useState(false);
-  const [selectedGrade, setSelectedGrade] = useState(null);
+  const [mcqResolved, setMcqResolved] = useState(false);
+  const [mcqCorrect, setMcqCorrect] = useState(false);
   const [done, setDone] = useState([]);
   const [reported, setReported] = useState(false);
 
@@ -122,7 +134,8 @@ export default function Review({ api, onToast, onSessionComplete }) {
       setTypingAnswer("");
       setMcqAnswer("");
       setJudgeResult(null);
-      setSelectedGrade(null);
+      setMcqResolved(false);
+      setMcqCorrect(false);
     } catch (e) {
       setError(e.message || "Cannot load session.");
     } finally {
@@ -141,10 +154,6 @@ export default function Review({ api, onToast, onSessionComplete }) {
       const editing = tag === "input" || tag === "textarea" || event.target?.isContentEditable;
       if (editing || !current || submitting) return;
 
-      if (/^[0-5]$/.test(event.key)) {
-        event.preventDefault();
-        await submitGrade(Number(event.key));
-      }
       if (event.key === " ") {
         event.preventDefault();
         if (mode === "flip") setShowBack((v) => !v);
@@ -154,14 +163,15 @@ export default function Review({ api, onToast, onSessionComplete }) {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [current, submitting, mode, questionType, typingAnswer, mcqAnswer, judgeResult]);
+  }, [current, submitting, mode]);
 
   useEffect(() => {
     setShowBack(false);
     setTypingAnswer("");
     setMcqAnswer("");
     setJudgeResult(null);
-    setSelectedGrade(null);
+    setMcqResolved(false);
+    setMcqCorrect(false);
   }, [index, mode, questionType]);
 
   useEffect(() => {
@@ -183,66 +193,15 @@ export default function Review({ api, onToast, onSessionComplete }) {
     window.speechSynthesis.speak(utterance);
   };
 
-  const checkTyping = async () => {
-    if (!current || mode !== "typing") return;
-    const answer = typingAnswer.trim();
-    if (!answer) {
-      onToast("Type your answer first.", "warning");
-      return;
-    }
-
-    const candidates = questionType === "term_to_meaning" ? current.meanings || [] : [current.term || ""];
-    const fuzzy = nearMatch(answer, candidates, 0.84);
-
-    if (fuzzy.matched) {
-      vibrate(15);
-      setJudgeResult({
-        isEquivalent: true,
-        reasonShort: `Near match (${fuzzy.score})`,
-        provider: "local",
-      });
-      return;
-    }
-
-    if (api?.has("aiJudge")) {
-      try {
-        const judged = await api.aiJudge({
-          term: current.term,
-          userAnswer: answer,
-          meanings: questionType === "term_to_meaning" ? current.meanings || [] : [current.term],
-        });
-        setJudgeResult(judged);
-        vibrate(judged.isEquivalent ? 20 : 55);
-      } catch (e) {
-        setJudgeResult({
-          isEquivalent: false,
-          reasonShort: e.message || "AI judge failed",
-          provider: "error",
-        });
-        vibrate(55);
-      }
-      return;
-    }
-
-    setJudgeResult({
-      isEquivalent: false,
-      reasonShort: `Not close enough (${fuzzy.score})`,
-      provider: "local",
-    });
-    vibrate(55);
-  };
-
-  const submitGrade = async (grade) => {
+  const submitOutcome = async ({ isCorrect, userAnswer }) => {
     if (!current || submitting) return;
     if (!api?.has("submitReview")) {
       onToast("Submit review endpoint is missing.", "error");
       return;
     }
 
+    const grade = gradeForOutcome(mode, isCorrect);
     setSubmitting(true);
-    setSelectedGrade(grade);
-
-    const userAnswer = mode === "typing" ? typingAnswer.trim() : mode === "mcq" ? mcqAnswer : undefined;
 
     try {
       const response = await api.submitReview({
@@ -264,18 +223,78 @@ export default function Review({ api, onToast, onSessionComplete }) {
         },
       ]);
 
-      vibrate(grade >= 3 ? 20 : 60);
+      vibrate(isCorrect ? 20 : 60);
 
-      if (index >= cards.length - 1) {
-        setIndex(cards.length);
-      } else {
-        setIndex((v) => v + 1);
-      }
+      window.setTimeout(() => {
+        if (index >= cards.length - 1) {
+          setIndex(cards.length);
+        } else {
+          setIndex((v) => v + 1);
+        }
+      }, isCorrect ? 550 : 900);
     } catch (e) {
       onToast(e.message || "Submit failed.", "error");
     } finally {
-      setSubmitting(false);
+      window.setTimeout(() => {
+        setSubmitting(false);
+      }, 120);
     }
+  };
+
+  const checkTyping = async () => {
+    if (!current || mode !== "typing") return;
+    const answer = typingAnswer.trim();
+    if (!answer) {
+      onToast("Type your answer first.", "warning");
+      return;
+    }
+
+    const candidates = questionType === "term_to_meaning" ? current.meanings || [] : [current.term || ""];
+    const fuzzy = nearMatch(answer, candidates, 0.84);
+
+    if (fuzzy.matched) {
+      vibrate(15);
+      const result = {
+        isEquivalent: true,
+        reasonShort: `Near match (${fuzzy.score})`,
+        provider: "local",
+      };
+      setJudgeResult(result);
+      void submitOutcome({ isCorrect: true, userAnswer: answer });
+      return;
+    }
+
+    if (api?.has("aiJudge")) {
+      try {
+        const judged = await api.aiJudge({
+          term: current.term,
+          userAnswer: answer,
+          meanings: questionType === "term_to_meaning" ? current.meanings || [] : [current.term],
+        });
+        setJudgeResult(judged);
+        vibrate(judged.isEquivalent ? 20 : 55);
+        void submitOutcome({ isCorrect: Boolean(judged.isEquivalent), userAnswer: answer });
+      } catch (e) {
+        const result = {
+          isEquivalent: false,
+          reasonShort: e.message || "AI judge failed",
+          provider: "error",
+        };
+        setJudgeResult(result);
+        vibrate(55);
+        void submitOutcome({ isCorrect: false, userAnswer: answer });
+      }
+      return;
+    }
+
+    const result = {
+      isEquivalent: false,
+      reasonShort: `Not close enough (${fuzzy.score})`,
+      provider: "local",
+    };
+    setJudgeResult(result);
+    vibrate(55);
+    void submitOutcome({ isCorrect: false, userAnswer: answer });
   };
 
   const summary = useMemo(() => {
@@ -368,6 +387,16 @@ export default function Review({ api, onToast, onSessionComplete }) {
                 <p>{(current.meanings || []).join("; ") || "No meanings"}</p>
                 {current.exampleEn ? <p><strong>EN:</strong> {current.exampleEn}</p> : null}
                 {current.exampleVi ? <p><strong>VI:</strong> {current.exampleVi}</p> : null}
+                {mode === "flip" ? (
+                  <div className="review-memory-actions">
+                    <button type="button" className="btn primary" disabled={submitting} onClick={() => void submitOutcome({ isCorrect: true })}>
+                      I remembered
+                    </button>
+                    <button type="button" className="btn danger" disabled={submitting} onClick={() => void submitOutcome({ isCorrect: false })}>
+                      I forgot
+                    </button>
+                  </div>
+                ) : null}
               </div>
             </div>
 
@@ -377,8 +406,21 @@ export default function Review({ api, onToast, onSessionComplete }) {
                   <button
                     key={`${opt}-${idx}`}
                     type="button"
-                    className={`mcq-btn ${mcqAnswer === opt ? "active" : ""}`}
-                    onClick={() => setMcqAnswer(opt)}
+                    className={[
+                      "mcq-btn",
+                      mcqAnswer === opt ? "active" : "",
+                      mcqResolved && mcqAnswer === opt && mcqCorrect ? "mcq-ok" : "",
+                      mcqResolved && mcqAnswer === opt && !mcqCorrect ? "mcq-wrong" : "",
+                      mcqResolved && opt === getCorrectAnswer(current, questionType) ? "mcq-answer" : "",
+                    ].filter(Boolean).join(" ")}
+                    disabled={mcqResolved || submitting}
+                    onClick={() => {
+                      const isCorrect = opt === getCorrectAnswer(current, questionType);
+                      setMcqAnswer(opt);
+                      setMcqResolved(true);
+                      setMcqCorrect(isCorrect);
+                      void submitOutcome({ isCorrect, userAnswer: opt });
+                    }}
                   >
                     {opt}
                   </button>
@@ -388,19 +430,21 @@ export default function Review({ api, onToast, onSessionComplete }) {
 
             {mode === "typing" ? (
               <div className="typing-wrap">
-                <div className="field-row two">
+                <div className="review-answer-row">
                   <input
+                    className={`review-answer-input ${judgeResult ? (judgeResult.isEquivalent ? "study-input-ok" : "study-input-wrong") : ""}`}
                     value={typingAnswer}
                     onChange={(e) => setTypingAnswer(e.target.value)}
                     placeholder="Type your answer"
+                    disabled={submitting}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
                         e.preventDefault();
-                        checkTyping();
+                        if (!submitting) checkTyping();
                       }
                     }}
                   />
-                  <button type="button" className="btn" onClick={checkTyping}>
+                  <button type="button" className="btn review-check-btn" disabled={submitting} onClick={checkTyping}>
                     Check
                   </button>
                 </div>
@@ -410,12 +454,13 @@ export default function Review({ api, onToast, onSessionComplete }) {
                     <strong>{judgeResult.isEquivalent ? "Great - accepted" : "Near miss / wrong"}</strong>
                     <span>{judgeResult.reasonShort}</span>
                     {judgeResult.provider ? <span>provider: {judgeResult.provider}</span> : null}
+                    {!judgeResult.isEquivalent ? (
+                      <span>Correct answer: {getCorrectAnswer(current, questionType)}</span>
+                    ) : null}
                   </div>
                 ) : null}
               </div>
             ) : null}
-
-            <GradeBar disabled={submitting} selected={selectedGrade} onPick={submitGrade} />
             {submitting ? <Spinner small label="Submitting review..." /> : null}
           </div>
         ) : null}

@@ -10,12 +10,6 @@ const INITIAL = {
   exampleEn: "",
   exampleVi: "",
   mnemonic: "",
-  tags: [],
-  collocations: [],
-  phrases: [],
-  topics: [],
-  cefrLevel: "",
-  ieltsBand: "",
   inputMethod: "typed",
 };
 
@@ -176,13 +170,15 @@ function buildSinglePayload(form) {
     exampleEn: cleanInlineText(form.exampleEn) || null,
     exampleVi: cleanInlineText(form.exampleVi) || null,
     mnemonic: cleanInlineText(form.mnemonic) || null,
-    tags: normalizeList(form.tags),
-    collocations: normalizeList(form.collocations),
-    phrases: normalizeList(form.phrases),
-    topics: normalizeList(form.topics),
-    cefrLevel: form.cefrLevel || null,
-    ieltsBand: form.ieltsBand ? Number(form.ieltsBand) : null,
+    tags: [],
+    collocations: [],
+    phrases: [],
+    topics: [],
+    cefrLevel: null,
+    ieltsBand: null,
+    wordFamily: {},
     inputMethod: form.inputMethod,
+    autoFixOnValidationFail: true,
   };
 }
 
@@ -190,7 +186,6 @@ export default function Add({ api, onToast }) {
   const [form, setForm] = useState(INITIAL);
   const [saving, setSaving] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
-  const [aiData, setAiData] = useState(null);
 
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkRows, setBulkRows] = useState(Array.from({ length: BULK_ROW_COUNT }, () => createBulkRow()));
@@ -335,8 +330,19 @@ export default function Add({ api, onToast }) {
         term: form.term.trim(),
         meaningsExisting: normalizeList(form.meanings),
       });
-      setAiData(data);
-      onToast(data.aiCalled ? "AI generated new suggestions." : "Loaded suggestions from cache.", "success");
+      const suggestions = data?.data || {};
+      const next = { ...form };
+      const example = Array.isArray(suggestions.examples) && suggestions.examples.length ? suggestions.examples[0] : null;
+      const mnemonic = Array.isArray(suggestions.mnemonics) && suggestions.mnemonics.length ? suggestions.mnemonics[0] : "";
+
+      if (!next.exampleEn && example?.en) next.exampleEn = example.en;
+      if (!next.exampleVi && example?.vi) next.exampleVi = example.vi;
+      if (!next.mnemonic && mnemonic) next.mnemonic = mnemonic;
+      if (!next.ipa && suggestions.ipa) next.ipa = suggestions.ipa;
+      next.meanings = normalizeList([...(next.meanings || []), ...(suggestions.meaningVariants || [])]);
+
+      setForm(next);
+      onToast(data.aiCalled ? "API filled missing details." : "Loaded saved suggestions from cache.", "success");
     } catch (error) {
       onToast(error.message || "AI enrich failed.", "error");
     } finally {
@@ -344,35 +350,9 @@ export default function Add({ api, onToast }) {
     }
   };
 
-  const applyAiSuggestions = () => {
-    if (!aiData?.data) return;
-
-    const suggestions = aiData.data;
-    const next = { ...form };
-    const example = Array.isArray(suggestions.examples) && suggestions.examples.length ? suggestions.examples[0] : null;
-    const mnemonic = Array.isArray(suggestions.mnemonics) && suggestions.mnemonics.length ? suggestions.mnemonics[0] : "";
-
-    if (example?.en && (!next.exampleEn || window.confirm("AI has a new EN example. Overwrite current value?"))) {
-      next.exampleEn = example.en;
-    }
-    if (example?.vi && (!next.exampleVi || window.confirm("AI has a new VI example. Overwrite current value?"))) {
-      next.exampleVi = example.vi;
-    }
-    if (mnemonic && (!next.mnemonic || window.confirm("AI has a new mnemonic. Overwrite current value?"))) {
-      next.mnemonic = mnemonic;
-    }
-    if (suggestions.ipa && (!next.ipa || window.confirm("AI has a new IPA. Overwrite current value?"))) {
-      next.ipa = suggestions.ipa;
-    }
-
-    next.meanings = normalizeList([...(next.meanings || []), ...(suggestions.meaningVariants || [])]);
-    setForm(next);
-    onToast("Merged AI suggestions into form.", "success");
-  };
-
   const onSubmit = async (event) => {
     event.preventDefault();
-    if (!api?.has("addVocab")) {
+    if (!api?.has("addVocab") && !canUpsert) {
       onToast("Create vocab endpoint is not available.", "error");
       return;
     }
@@ -385,14 +365,24 @@ export default function Add({ api, onToast }) {
 
     setSaving(true);
     try {
-      const saved = await api.addVocab(payload);
-      if (saved?.readdCount > 0) {
+      const saved = canUpsert
+        ? await api.upsertVocab({
+            ...payload,
+            overwriteExisting: false,
+            useAi: true,
+            forceAi: false,
+          })
+        : await api.addVocab(payload);
+
+      const savedVocab = saved?.vocab || saved;
+      if (savedVocab?.readdCount > 0) {
         onToast("Term already exists. It was pushed back to review queue.", "warning");
+      } else if (saved?.ai?.aiCalled) {
+        onToast("Saved and enriched by API.", "success");
       } else {
         onToast("Saved new vocab.", "success");
       }
       setForm({ ...INITIAL, inputMethod: form.inputMethod });
-      setAiData(null);
     } catch (error) {
       const detail = typeof error?.data?.detail === "object" ? JSON.stringify(error.data.detail) : "";
       onToast(`${error.message || "Save failed."}${detail ? ` | ${detail}` : ""}`, "error");
@@ -484,10 +474,10 @@ export default function Add({ api, onToast }) {
   };
 
   return (
-    <div className="page-grid">
+    <div className="page-grid one">
       <section className="card">
         <h2>Add vocab</h2>
-        <p className="muted">Add one item quickly, or use Bulk Add table for many rows at once.</p>
+        <p className="muted">Keep the form minimal. Missing IPA, examples, mnemonic, and extra meaning variants will be filled via backend API when available.</p>
 
         <form onSubmit={onSubmit} className="form-grid">
           <div className="field">
@@ -527,39 +517,12 @@ export default function Add({ api, onToast }) {
             <textarea value={form.mnemonic} onChange={(e) => update("mnemonic", e.target.value)} rows={2} />
           </div>
 
-          <ChipInput label="Tags" values={form.tags} onChange={(v) => update("tags", v)} placeholder="personality" />
-          <ChipInput label="Collocations" values={form.collocations} onChange={(v) => update("collocations", v)} placeholder="highly resilient" />
-          <ChipInput label="Phrases" values={form.phrases} onChange={(v) => update("phrases", v)} placeholder="build resilience" />
-          <ChipInput label="Topics" values={form.topics} onChange={(v) => update("topics", v)} placeholder="Environment" />
-
-          <div className="field-row two">
-            <div className="field">
-              <label>CEFR</label>
-              <select value={form.cefrLevel} onChange={(e) => update("cefrLevel", e.target.value)}>
-                <option value="">(none)</option>
-                <option value="A1">A1</option>
-                <option value="A2">A2</option>
-                <option value="B1">B1</option>
-                <option value="B2">B2</option>
-                <option value="C1">C1</option>
-                <option value="C2">C2</option>
-              </select>
-            </div>
-            <div className="field">
-              <label>IELTS target band</label>
-              <input type="number" min="1" max="9" step="0.5" value={form.ieltsBand} onChange={(e) => update("ieltsBand", e.target.value)} />
-            </div>
-          </div>
-
           <div className="actions">
             <button type="submit" className="btn primary" disabled={saving}>
               {saving ? "Saving..." : "Save vocab"}
             </button>
             <button type="button" className="btn" onClick={handleAiEnrich} disabled={aiLoading || !canEnrich}>
-              {aiLoading ? "AI loading..." : "AI Assist"}
-            </button>
-            <button type="button" className="btn" onClick={applyAiSuggestions} disabled={!aiData}>
-              Merge AI
+              {aiLoading ? "Loading..." : "Auto fill"}
             </button>
             <button type="button" className="btn" onClick={() => setBulkOpen(true)}>
               Bulk add
@@ -568,25 +531,6 @@ export default function Add({ api, onToast }) {
 
           {saving ? <Spinner small label="Submitting..." /> : null}
         </form>
-      </section>
-
-      <section className="card">
-        <h2>AI suggestions</h2>
-        {!aiData ? <p className="muted">No AI data yet.</p> : null}
-        {aiData ? (
-          <div className="json-preview">
-            <div>
-              <strong>Provider:</strong> {aiData.provider || "unknown"}
-            </div>
-            <div>
-              <strong>AI called:</strong> {String(Boolean(aiData.aiCalled))}
-            </div>
-            <div>
-              <strong>From cache:</strong> {String(Boolean(aiData.fromCache))}
-            </div>
-            <pre>{JSON.stringify(aiData.data || {}, null, 2)}</pre>
-          </div>
-        ) : null}
       </section>
 
       <Modal
@@ -749,5 +693,4 @@ export default function Add({ api, onToast }) {
     </div>
   );
 }
-
 

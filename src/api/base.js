@@ -1,4 +1,7 @@
+import { getText } from "../utils/storage";
+
 export const DEFAULT_BASE_URL = (process.env.REACT_APP_API_BASE_URL || "http://localhost:8000").trim();
+export const AUTH_TOKEN_KEY = "auth_token";
 
 export class ApiError extends Error {
   constructor(message, { status, data, url, method } = {}) {
@@ -63,12 +66,14 @@ export async function requestJson({
 }) {
   const url = buildUrl(baseUrl, path, query);
   const hasBody = body !== undefined;
+  const authToken = getText(AUTH_TOKEN_KEY, "").trim();
 
   const attempt = async () => {
     const response = await fetch(url, {
       method,
       headers: {
         ...(hasBody ? { "Content-Type": "application/json" } : {}),
+        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
         ...(headers || {}),
       },
       body: hasBody ? JSON.stringify(body) : undefined,

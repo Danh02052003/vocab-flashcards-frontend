@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import Modal from "../components/Modal";
 import ChipInput from "../components/ChipInput";
-import { formatDateTime, isDue } from "../utils/date";
+import { isDue } from "../utils/date";
 
 function normalizeList(values) {
   const seen = new Set();
@@ -22,8 +22,8 @@ function cleanTermText(value) {
     .replace(/\r?\n+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
-  text = text.replace(/^\s*(?:[-*•]+|\d+[.)-]?)\s*/, "");
-  if (text === "-" || text === "–") return "";
+  text = text.replace(/^\s*(?:[-*\u2022]+|\d+[.)-]?)\s*/, "");
+  if (text === "-" || text === "\u2013") return "";
   return text;
 }
 
@@ -45,15 +45,34 @@ function createEditModel(vocab) {
   };
 }
 
+function DetailRow({ label, value }) {
+  if (!value) return null;
+  return (
+    <div className="detail-row">
+      <strong>{label}</strong>
+      <span>{value}</span>
+    </div>
+  );
+}
+
+function DetailSection({ title, children, className = "" }) {
+  return (
+    <section className={`detail-section ${className}`.trim()}>
+      <h3>{title}</h3>
+      {children}
+    </section>
+  );
+}
+
 export default function List({ api, onToast }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [tag, setTag] = useState("");
-  const [onlyDue, setOnlyDue] = useState(false);
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(20);
 
+  const [selected, setSelected] = useState(null);
   const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
 
@@ -84,12 +103,14 @@ export default function List({ api, onToast }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, limit]);
 
-  const filteredItems = useMemo(() => {
-    if (!onlyDue) return items;
-    return items.filter((item) => isDue(item.dueAt));
-  }, [items, onlyDue]);
+  const openDetail = (item) => setSelected(item);
+  const closeDetail = () => setSelected(null);
 
-  const openEdit = (item) => setEditing(createEditModel(item));
+  const openEdit = (item) => {
+    setSelected(null);
+    setEditing(createEditModel(item));
+  };
+
   const closeEdit = () => setEditing(null);
 
   const updateEditing = (key, value) => {
@@ -118,6 +139,7 @@ export default function List({ api, onToast }) {
 
       const updated = await api.updateVocab(editing.id, payload);
       setItems((prev) => prev.map((item) => (item.id === editing.id ? updated : item)));
+      setSelected(updated);
       onToast("Card updated.", "success");
       closeEdit();
     } catch (e) {
@@ -137,6 +159,7 @@ export default function List({ api, onToast }) {
     try {
       await api.deleteVocab(id);
       setItems((prev) => prev.filter((item) => item.id !== id));
+      setSelected(null);
       onToast("Card deleted.", "success");
     } catch (e) {
       onToast(e.message || "Delete failed.", "error");
@@ -149,7 +172,6 @@ export default function List({ api, onToast }) {
         <div className="row-between">
           <div>
             <h2>Vocabulary cards</h2>
-            <p className="muted">Responsive card layout with quick edit/delete actions.</p>
           </div>
           <button type="button" className="btn" onClick={loadList} disabled={loading}>
             Reload
@@ -174,11 +196,6 @@ export default function List({ api, onToast }) {
           <button type="submit" className="btn primary">Search</button>
         </form>
 
-        <label className="check-line">
-          <input type="checkbox" checked={onlyDue} onChange={(e) => setOnlyDue(e.target.checked)} />
-          Show due cards only
-        </label>
-
         <div className="pager">
           <button type="button" className="btn" disabled={page <= 1} onClick={() => setPage((v) => Math.max(1, v - 1))}>
             Prev
@@ -197,12 +214,12 @@ export default function List({ api, onToast }) {
           </div>
         ) : null}
 
-        {!loading && filteredItems.length === 0 ? <p>No cards found.</p> : null}
+        {!loading && items.length === 0 ? <p>No cards found.</p> : null}
 
-        {!loading && filteredItems.length > 0 ? (
+        {!loading && items.length > 0 ? (
           <div className="vocab-masonry">
-            {filteredItems.map((item) => (
-              <article key={item.id} className="vocab-card">
+            {items.map((item) => (
+              <article key={item.id} className="vocab-card" onClick={() => openDetail(item)} role="button" tabIndex={0}>
                 <div className="row-between">
                   <h3>{cleanTermText(item.term) || "(empty term)"}</h3>
                   <span className={`status-chip ${isDue(item.dueAt) ? "warn" : "ok"}`}>{isDue(item.dueAt) ? "Due" : "Scheduled"}</span>
@@ -221,20 +238,106 @@ export default function List({ api, onToast }) {
                   </div>
                 ) : null}
 
-                <div className="vocab-meta">
-                  <small>Due: {formatDateTime(item.dueAt)}</small>
-                  <small>Rep {item.repetitions} | EF {item.easeFactor} | Lapses {item.lapses}</small>
-                </div>
-
                 <div className="inline-actions">
-                  <button type="button" className="btn" onClick={() => openEdit(item)}>Edit</button>
-                  <button type="button" className="btn danger" onClick={() => removeItem(item.id, item.term)}>Delete</button>
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      openEdit(item);
+                    }}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    className="btn danger"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      removeItem(item.id, item.term);
+                    }}
+                  >
+                    Delete
+                  </button>
                 </div>
               </article>
             ))}
           </div>
         ) : null}
       </section>
+
+      <Modal
+        open={Boolean(selected)}
+        title={selected ? selected.term : "Card details"}
+        onClose={closeDetail}
+        footer={
+          selected ? (
+            <>
+              <button type="button" className="btn" onClick={closeDetail}>Close</button>
+              <button type="button" className="btn primary" onClick={() => openEdit(selected)}>Edit</button>
+            </>
+          ) : null
+        }
+      >
+        {selected ? (
+          <div className="detail-layout">
+            <section className="detail-hero">
+              <div className="detail-hero-main">
+                <h2>{selected.term}</h2>
+                {selected.ipa ? <p className="detail-ipa mono">{selected.ipa}</p> : null}
+              </div>
+              <div className="detail-hero-side">
+                <span className={`status-chip ${isDue(selected.dueAt) ? "warn" : "ok"}`}>
+                  {isDue(selected.dueAt) ? "Need review" : "Scheduled"}
+                </span>
+              </div>
+            </section>
+
+            <DetailSection title="Meaning">
+              <p className="detail-meaning">{(selected.meanings || []).join("; ") || "No meanings yet"}</p>
+            </DetailSection>
+
+            <div className="detail-split">
+              <DetailSection title="Example 1" className="detail-example-card">
+                <p>{selected.exampleEn || "No example yet"}</p>
+              </DetailSection>
+              <DetailSection title="Example 2" className="detail-example-card">
+                <p>{selected.exampleVi || "No example yet"}</p>
+              </DetailSection>
+            </div>
+
+            {selected.mnemonic ? (
+              <DetailSection title="Memory hook">
+                <p>{selected.mnemonic}</p>
+              </DetailSection>
+            ) : null}
+
+            {(selected.tags || []).length || (selected.collocations || []).length || (selected.phrases || []).length || (selected.topics || []).length ? (
+              <DetailSection title="Word network">
+                <div className="detail-grid">
+                  <DetailRow label="Tags" value={(selected.tags || []).join(", ")} />
+                  <DetailRow label="Collocations" value={(selected.collocations || []).join(", ")} />
+                  <DetailRow label="Phrases" value={(selected.phrases || []).join(", ")} />
+                  <DetailRow label="Topics" value={(selected.topics || []).join(", ")} />
+                </div>
+              </DetailSection>
+            ) : null}
+
+            {selected.cefrLevel || selected.ieltsBand || selected.repetitions !== undefined ? (
+              <DetailSection title="Learning status">
+                <div className="detail-metrics">
+                  {selected.cefrLevel ? <div className="detail-metric"><span>CEFR</span><strong>{selected.cefrLevel}</strong></div> : null}
+                  {selected.ieltsBand ? <div className="detail-metric"><span>IELTS</span><strong>{selected.ieltsBand}</strong></div> : null}
+                  <div className="detail-metric"><span>Rep</span><strong>{selected.repetitions}</strong></div>
+                  <div className="detail-metric"><span>EF</span><strong>{selected.easeFactor}</strong></div>
+                  <div className="detail-metric"><span>Lapses</span><strong>{selected.lapses}</strong></div>
+                  <div className="detail-metric"><span>Re-add</span><strong>{selected.readdCount}</strong></div>
+                </div>
+              </DetailSection>
+            ) : null}
+          </div>
+        ) : null}
+      </Modal>
 
       <Modal
         open={Boolean(editing)}

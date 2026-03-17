@@ -47,12 +47,6 @@ function localSentenceIssues(text, term) {
     issues.push("Sentence is empty.");
     return issues;
   }
-  if (!/[A-Z]/.test(t.charAt(0))) {
-    issues.push("Start the sentence with a capital letter.");
-  }
-  if (!/[.!?]$/.test(t)) {
-    issues.push("End the sentence with punctuation (., !, ?).");
-  }
   if (t.split(/\s+/).length < 5) {
     issues.push("Sentence is too short. Try at least 5 words.");
   }
