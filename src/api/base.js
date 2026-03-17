@@ -42,7 +42,11 @@ function extractErrorMessage(data, fallback) {
   if (!data) return fallback;
   if (typeof data === "string") return data;
   if (typeof data.detail === "string") return data.detail;
-  if (Array.isArray(data.detail)) return JSON.stringify(data.detail);
+  if (Array.isArray(data.detail)) {
+    const first = data.detail[0];
+    if (first?.msg) return first.msg;
+    return fallback;
+  }
   if (typeof data.message === "string") return data.message;
   return fallback;
 }

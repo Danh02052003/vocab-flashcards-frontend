@@ -185,6 +185,18 @@
   gap: 12px;
 }
 
+.password-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.password-toggle {
+  min-width: 82px;
+  white-space: nowrap;
+}
+
 .auth-submit {
   min-height: 46px;
 }
