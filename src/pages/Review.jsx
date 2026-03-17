@@ -89,7 +89,7 @@ function CircleProgress({ value, label }) {
   );
 }
 
-export default function Review({ api, onToast, onSessionComplete }) {
+export default function Review({ api, onToast, onSessionComplete, onStats }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [session, setSession] = useState({ todayNew: [], review: [] });
@@ -145,6 +145,9 @@ export default function Review({ api, onToast, onSessionComplete }) {
 
   useEffect(() => {
     loadSession();
+    if (api?.has("statsReviewStarted")) {
+      void api.statsReviewStarted().then((remoteStats) => onStats?.(remoteStats)).catch(() => {});
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

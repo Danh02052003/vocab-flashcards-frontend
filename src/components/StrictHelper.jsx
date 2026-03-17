@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { DEFAULT_BASE_URL, requestJson } from "../api/base";
 
 const STRICT_META_KEY = "strict_helper_meta";
 const STRICT_INTERVAL_KEY = "strict_helper_interval_ms";
@@ -65,6 +66,7 @@ export default function StrictHelper() {
   const [running, setRunning] = useState(false);
   const [nextAt, setNextAt] = useState(0);
   const [intervalMs, setIntervalMs] = useState(() => readIntervalMs());
+  const [targetWords, setTargetWords] = useState(5);
 
   const appUrl = useMemo(() => {
     const base = `${window.location.origin}${window.location.pathname}`;
@@ -118,6 +120,29 @@ export default function StrictHelper() {
   }, []);
 
   useEffect(() => {
+    let active = true;
+    const loadStats = async () => {
+      try {
+        const { data } = await requestJson({
+          baseUrl: DEFAULT_BASE_URL,
+          path: "/stats",
+          method: "GET",
+        });
+        if (!active) return;
+        const nextMinutes = Number(data?.studyLockIntervalMinutes || 45);
+        setIntervalMs(nextMinutes * 60 * 1000);
+        setTargetWords(Number(data?.studyLockTargetPerDay || 5));
+      } catch (_) {
+        // keep fallback local values
+      }
+    };
+    void loadStats();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
     if (!running) return undefined;
     const timer = window.setInterval(() => {
       if (!nextAt) return;
@@ -152,7 +177,7 @@ export default function StrictHelper() {
     <main className="strict-helper-shell">
       <section className="strict-helper-card">
         <h1>Strict Study Mode</h1>
-        <p>This tab will force a vocabulary check every 45 minutes.</p>
+        <p>This tab will force vocabulary checks based on your account study plan.</p>
 
         <div className="strict-helper-status">
           <span className={`status-chip ${running ? "warn" : "ok"}`}>
@@ -162,6 +187,17 @@ export default function StrictHelper() {
         </div>
 
         <div className="strict-helper-actions">
+          <label className="muted" htmlFor="strict-target">Words per day</label>
+          <input
+            id="strict-target"
+            type="number"
+            min="1"
+            max="100"
+            step="1"
+            value={targetWords}
+            onChange={(e) => setTargetWords(Math.max(1, Math.min(100, Number(e.target.value || 5))))}
+            style={{ width: 100 }}
+          />
           <label className="muted" htmlFor="strict-minutes">Interval (minutes)</label>
           <input
             id="strict-minutes"
@@ -176,6 +212,27 @@ export default function StrictHelper() {
         </div>
 
         <div className="strict-helper-actions">
+          <button
+            type="button"
+            className="btn"
+            onClick={async () => {
+              try {
+                await requestJson({
+                  baseUrl: DEFAULT_BASE_URL,
+                  path: "/stats/settings",
+                  method: "POST",
+                  body: {
+                    studyLockTargetPerDay: targetWords,
+                    studyLockIntervalMinutes: intervalMinutes,
+                  },
+                });
+              } catch (_) {
+                // ignore and still allow helper to run locally
+              }
+            }}
+          >
+            Save plan
+          </button>
           <button type="button" className="btn primary" onClick={startStrict} disabled={running}>
             Start strict mode
           </button>
@@ -188,7 +245,7 @@ export default function StrictHelper() {
         </div>
 
         <p className="muted">
-          Keep this helper tab open. If popup is blocked, this tab will switch to the study screen directly.
+          Keep this helper tab open. Goal: {targetWords} words/day, every {intervalMinutes} minutes. If popup is blocked, this tab will switch to the study screen directly.
         </p>
       </section>
     </main>

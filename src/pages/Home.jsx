@@ -24,8 +24,8 @@ export default function Home({ api, stats, onNavigate }) {
 
   const streakActive = useMemo(() => {
     const today = new Date().toISOString().slice(0, 10);
-    return stats.lastReviewDate === today;
-  }, [stats.lastReviewDate]);
+    return stats.lastActivityDate === today;
+  }, [stats.lastActivityDate]);
 
   const streakPaletteClass = useMemo(() => {
     const streak = Number(stats.streak || 0);
@@ -131,20 +131,32 @@ export default function Home({ api, stats, onNavigate }) {
           <h3>Today plan</h3>
           {loading ? <Spinner small label="Syncing..." /> : null}
         </div>
-        <div className="stat-list">
-          <div className="stat-item">
-            <span>New today</span>
+          <div className="stat-list">
+            <div className="stat-item">
+              <span>New today</span>
             <strong>{todayInfo.todayNew}</strong>
+            </div>
+            <div className="stat-item">
+              <span>Need review</span>
+              <strong>{todayInfo.review}</strong>
+            </div>
+            <div className="stat-item">
+              <span>Total reviewed</span>
+              <strong>{stats.totalReviewed || 0}</strong>
+            </div>
+            <div className="stat-item">
+              <span>New created today</span>
+              <strong>{stats.dailyNewCreatedCount || 0}/5</strong>
+            </div>
+            <div className="stat-item">
+              <span>Study lock today</span>
+              <strong>{stats.dailyStudyLockCompletedCount || 0}/{stats.studyLockTargetPerDay || 5}</strong>
+            </div>
+            <div className="stat-item">
+              <span>Lock interval</span>
+              <strong>{stats.studyLockIntervalMinutes || 45} min</strong>
+            </div>
           </div>
-          <div className="stat-item">
-            <span>Need review</span>
-            <strong>{todayInfo.review}</strong>
-          </div>
-          <div className="stat-item">
-            <span>Total reviewed</span>
-            <strong>{stats.totalReviewed || 0}</strong>
-          </div>
-        </div>
       </section>
     </div>
   );

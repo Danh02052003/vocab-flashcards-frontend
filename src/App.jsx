@@ -24,7 +24,6 @@ import "./App.css";
 
 const VALID_PAGES = ["home", "review", "add", "list", "sync", "advanced"];
 const PREFS_KEY = "ui_prefs";
-const STATS_KEY = "learning_stats";
 const ONBOARD_KEY = "onboarding_done";
 const STUDY_LOCK_KEY = "study_lock_meta";
 const AUTH_TOKEN_KEY = "auth_token";
@@ -51,20 +50,6 @@ const ONBOARD_SLIDES = [
 function pageFromHash() {
   const hash = window.location.hash.replace(/^#/, "").trim().toLowerCase();
   return VALID_PAGES.includes(hash) ? hash : "home";
-}
-
-function statsStorageKey(user) {
-  return user?.id ? `${STATS_KEY}:${user.id}` : STATS_KEY;
-}
-
-function getTodayKey() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function getYesterdayKey() {
-  const d = new Date();
-  d.setDate(d.getDate() - 1);
-  return d.toISOString().slice(0, 10);
 }
 
 function useToasts() {
@@ -123,15 +108,17 @@ function MainApp({ forceStudyLock }) {
     })
   );
 
-  const [stats, setStats] = useState(() =>
-    getJson(STATS_KEY, {
-      streak: 0,
-      lastReviewDate: "",
-      totalReviewed: 0,
-      totalCorrect: 0,
-      accuracy: 0,
-    })
-  );
+  const [stats, setStats] = useState({
+    streak: 0,
+    lastActivityDate: "",
+    totalReviewed: 0,
+    totalCorrect: 0,
+    accuracy: 0,
+    dailyNewCreatedCount: 0,
+    dailyStudyLockCompletedCount: 0,
+    studyLockTargetPerDay: 5,
+    studyLockIntervalMinutes: 45,
+  });
 
   const [showOnboarding, setShowOnboarding] = useState(() => !getJson(ONBOARD_KEY, false));
   const [onboardingStep, setOnboardingStep] = useState(0);
@@ -148,10 +135,10 @@ function MainApp({ forceStudyLock }) {
     })
   );
   const studyIntervalMs = useMemo(() => {
-    const minutesRaw = Number(prefs?.studyIntervalMinutes || 45);
+    const minutesRaw = Number(stats?.studyLockIntervalMinutes || 45);
     const minutes = Number.isFinite(minutesRaw) ? Math.max(5, Math.min(240, minutesRaw)) : 45;
     return minutes * 60 * 1000;
-  }, [prefs?.studyIntervalMinutes]);
+  }, [stats?.studyLockIntervalMinutes]);
 
   const { items, push, dismiss } = useToasts();
 
@@ -182,6 +169,12 @@ function MainApp({ forceStudyLock }) {
   }, [client, schemaRefreshedForAuth, loadOpenApi]);
 
   useEffect(() => {
+    if (!client || !authSession?.token) return;
+    if (client.has("statsGet")) return;
+    void loadOpenApi(true);
+  }, [client, authSession?.token, loadOpenApi]);
+
+  useEffect(() => {
     let active = true;
     const syncAuth = async () => {
       if (!client) return;
@@ -194,6 +187,10 @@ function MainApp({ forceStudyLock }) {
         if (!active) return;
         setJson(AUTH_USER_KEY, user);
         setAuthSession((prev) => ({ ...(prev || {}), user }));
+        if (client.has("statsGet")) {
+          const remoteStats = await client.getStats();
+          if (active) setStats(remoteStats);
+        }
       } catch (_) {
         if (!active) return;
         removeKey(AUTH_TOKEN_KEY);
@@ -220,25 +217,6 @@ function MainApp({ forceStudyLock }) {
     document.body.classList.toggle("dark", Boolean(prefs.darkMode));
     document.body.classList.toggle("high-contrast", Boolean(prefs.highContrast));
   }, [prefs]);
-
-  useEffect(() => {
-    setJson(statsStorageKey(authSession?.user), stats);
-  }, [stats, authSession?.user]);
-
-  useEffect(() => {
-    setStats(
-      getJson(
-        statsStorageKey(authSession?.user),
-        {
-          streak: 0,
-          lastReviewDate: "",
-          totalReviewed: 0,
-          totalCorrect: 0,
-          accuracy: 0,
-        }
-      )
-    );
-  }, [authSession?.user]);
 
   useEffect(() => {
     setJson(STUDY_LOCK_KEY, studyMeta);
@@ -351,6 +329,17 @@ function MainApp({ forceStudyLock }) {
       removeKey(AUTH_USER_KEY);
       setAuthSession({ token: "", user: null });
       setStudyLock({ open: false, card: null, pool: [] });
+      setStats({
+        streak: 0,
+        lastActivityDate: "",
+        totalReviewed: 0,
+        totalCorrect: 0,
+        accuracy: 0,
+        dailyNewCreatedCount: 0,
+        dailyStudyLockCompletedCount: 0,
+        studyLockTargetPerDay: 5,
+        studyLockIntervalMinutes: 45,
+      });
     }
   }, [client]);
 
@@ -362,47 +351,30 @@ function MainApp({ forceStudyLock }) {
   const onReviewSessionComplete = (summary) => {
     const total = Number(summary?.total || 0);
     const correct = Number(summary?.passed || 0);
-    const today = getTodayKey();
-    const yesterday = getYesterdayKey();
-
-    setStats((prev) => {
-      const current = prev || {};
-      const prevLast = current.lastReviewDate || "";
-      const prevStreak = Number(current.streak || 0);
-
-      let nextStreak = prevStreak;
-      if (prevLast !== today) {
-        nextStreak = prevLast === yesterday ? prevStreak + 1 : 1;
-      }
-
-      const totalReviewed = Number(current.totalReviewed || 0) + total;
-      const totalCorrect = Number(current.totalCorrect || 0) + correct;
-      const accuracy = totalReviewed > 0 ? Math.round((totalCorrect / totalReviewed) * 100) : 0;
-
-      if (nextStreak > 0 && nextStreak % 7 === 0 && prevLast !== today) {
-        setShowConfetti(true);
-        window.setTimeout(() => setShowConfetti(false), 5000);
-        push(`Streak ${nextStreak} days!`, "success");
-      }
-
-      return {
-        streak: nextStreak,
-        lastReviewDate: today,
-        totalReviewed,
-        totalCorrect,
-        accuracy,
-      };
-    });
+    const previousStreak = Number(stats?.streak || 0);
+    if (!client?.has("statsReviewCompleted")) return;
+    void client
+      .statsReviewCompleted({ total, passed: correct })
+      .then((remoteStats) => {
+        const nextStreak = Number(remoteStats?.streak || 0);
+        setStats(remoteStats);
+        if (nextStreak > 0 && nextStreak % 7 === 0 && nextStreak > previousStreak) {
+          setShowConfetti(true);
+          window.setTimeout(() => setShowConfetti(false), 5000);
+          push(`Streak ${nextStreak} days!`, "success");
+        }
+      })
+      .catch(() => {});
   };
 
   const renderPage = () => {
     if (!client) return null;
     if (page === "home") return <Home api={client} stats={stats} onNavigate={changePage} />;
-    if (page === "review") return <Review api={client} onToast={push} onSessionComplete={onReviewSessionComplete} />;
+    if (page === "review") return <Review api={client} onToast={push} onSessionComplete={onReviewSessionComplete} onStats={setStats} />;
     if (page === "list") return <List api={client} onToast={push} />;
     if (page === "sync") return <SyncPage api={client} onToast={push} />;
     if (page === "advanced") return <Advanced api={client} schema={schema} onToast={push} />;
-    return <Add api={client} onToast={push} />;
+    return <Add api={client} onToast={push} onStats={setStats} />;
   };
 
   return (
@@ -442,19 +414,43 @@ function MainApp({ forceStudyLock }) {
               </button>
               <input
                 type="number"
+                min="1"
+                max="100"
+                step="1"
+                value={stats.studyLockTargetPerDay || 5}
+                onChange={(e) => setStats((prev) => ({ ...prev, studyLockTargetPerDay: Number(e.target.value || 5) }))}
+                title="Words per day"
+                style={{ width: 90 }}
+              />
+              <input
+                type="number"
                 min="5"
                 max="240"
                 step="5"
-                value={prefs.studyIntervalMinutes}
-                onChange={(e) =>
-                  setPrefs((p) => ({
-                    ...p,
-                    studyIntervalMinutes: Number(e.target.value || 45),
-                  }))
-                }
+                value={stats.studyLockIntervalMinutes || 45}
+                onChange={(e) => setStats((prev) => ({ ...prev, studyLockIntervalMinutes: Number(e.target.value || 45) }))}
                 title="Study interval (minutes)"
                 style={{ width: 90 }}
               />
+              <button
+                type="button"
+                className="btn"
+                onClick={async () => {
+                  if (!client?.has("statsUpdateSettings")) return;
+                  try {
+                    const remoteStats = await client.statsUpdateSettings({
+                      studyLockTargetPerDay: Number(stats.studyLockTargetPerDay || 5),
+                      studyLockIntervalMinutes: Number(stats.studyLockIntervalMinutes || 45),
+                    });
+                    setStats(remoteStats);
+                    push("Study plan saved.", "success");
+                  } catch (error) {
+                    push(error.message || "Cannot save study plan.", "error");
+                  }
+                }}
+              >
+                Save plan
+              </button>
               <button type="button" className="btn" onClick={() => setPrefs((p) => ({ ...p, studyLockEnabled: !p.studyLockEnabled }))}>
                 {prefs.studyLockEnabled ? "Study Lock: ON" : "Study Lock: OFF"}
               </button>
@@ -525,6 +521,15 @@ function MainApp({ forceStudyLock }) {
         pool={studyLock.pool}
         api={client}
         onToast={push}
+        onCompleted={async () => {
+          if (!client?.has("statsStudyLockCompleted")) return;
+          try {
+            const remoteStats = await client.statsStudyLockCompleted({ count: 1 });
+            setStats(remoteStats);
+          } catch (_) {
+            // ignore
+          }
+        }}
         onUnlock={() => {
           setStudyLock({ open: false, card: null, pool: [] });
           setStudyMeta({ lastPromptAt: Date.now() });

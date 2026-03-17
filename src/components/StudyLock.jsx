@@ -58,7 +58,7 @@ function localSentenceIssues(text, term) {
   return issues;
 }
 
-export default function StudyLock({ open, card, pool, api, onUnlock, onToast }) {
+export default function StudyLock({ open, card, pool, api, onUnlock, onToast, onCompleted }) {
   const [step, setStep] = useState(0);
   const [checking, setChecking] = useState(false);
   const [errorText, setErrorText] = useState("");
@@ -219,6 +219,7 @@ export default function StudyLock({ open, card, pool, api, onUnlock, onToast }) 
         suggestion,
       });
       setExitCountdown(5);
+      onCompleted?.();
       onToast("Perfect. Your sentence matches a saved example.", "success");
       return;
     }
@@ -281,6 +282,7 @@ export default function StudyLock({ open, card, pool, api, onUnlock, onToast }) 
       suggestion,
     });
     setExitCountdown(5);
+    onCompleted?.();
     onToast("Great job. Study lock completed.", "success");
   }
 

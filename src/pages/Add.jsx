@@ -182,7 +182,7 @@ function buildSinglePayload(form) {
   };
 }
 
-export default function Add({ api, onToast }) {
+export default function Add({ api, onToast, onStats }) {
   const [form, setForm] = useState(INITIAL);
   const [saving, setSaving] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
@@ -382,6 +382,14 @@ export default function Add({ api, onToast }) {
       } else {
         onToast("Saved new vocab.", "success");
       }
+      if ((saved?.action === "created" || (!saved?.action && !savedVocab?.readdCount)) && api?.has("statsVocabCreated")) {
+        try {
+          const remoteStats = await api.statsVocabCreated({ count: 1 });
+          onStats?.(remoteStats);
+        } catch (_) {
+          // ignore stats update failures
+        }
+      }
       setForm({ ...INITIAL, inputMethod: form.inputMethod });
     } catch (error) {
       const detail = typeof error?.data?.detail === "object" ? JSON.stringify(error.data.detail) : "";
@@ -470,6 +478,14 @@ export default function Add({ api, onToast }) {
     setBulkRows(Array.from({ length: BULK_ROW_COUNT }, () => createBulkRow()));
     setSmartImportText("");
     setBulkReport(report);
+    if (report.created > 0 && api?.has("statsVocabCreated")) {
+      try {
+        const remoteStats = await api.statsVocabCreated({ count: report.created });
+        onStats?.(remoteStats);
+      } catch (_) {
+        // ignore stats update failures
+      }
+    }
     onToast(`Bulk save finished. Success ${report.success}/${report.total}.`, report.failed ? "warning" : "success");
   };
 
@@ -693,4 +709,3 @@ export default function Add({ api, onToast }) {
     </div>
   );
 }
-

@@ -152,6 +152,24 @@ export function discoverCoreOperations(schema) {
     syncImport: findBest(operations, [
       { method: "POST", pathIncludes: ["sync", "import"] },
     ]),
+    statsGet: findBest(operations, [
+      { method: "GET", preferPathExact: "/stats", pathIncludes: ["/stats"] },
+    ]),
+    statsReviewStarted: findBest(operations, [
+      { method: "POST", pathIncludes: ["stats", "review_started"] },
+    ]),
+    statsReviewCompleted: findBest(operations, [
+      { method: "POST", pathIncludes: ["stats", "review_completed"] },
+    ]),
+    statsVocabCreated: findBest(operations, [
+      { method: "POST", pathIncludes: ["stats", "vocab_created"] },
+    ]),
+    statsStudyLockCompleted: findBest(operations, [
+      { method: "POST", pathIncludes: ["stats", "study_lock_completed"] },
+    ]),
+    statsUpdateSettings: findBest(operations, [
+      { method: "POST", pathIncludes: ["stats", "settings"] },
+    ]),
   };
 
   return { operations, core };
@@ -332,6 +350,24 @@ export function createApiClient({ schema, baseUrl = DEFAULT_BASE_URL }) {
     },
     async syncImport(payload) {
       return callOperation({ baseUrl, op: requireOp("syncImport"), body: payload });
+    },
+    async getStats() {
+      return callOperation({ baseUrl, op: requireOp("statsGet") });
+    },
+    async statsReviewStarted() {
+      return callOperation({ baseUrl, op: requireOp("statsReviewStarted"), body: {} });
+    },
+    async statsReviewCompleted(payload) {
+      return callOperation({ baseUrl, op: requireOp("statsReviewCompleted"), body: payload });
+    },
+    async statsVocabCreated(payload) {
+      return callOperation({ baseUrl, op: requireOp("statsVocabCreated"), body: payload });
+    },
+    async statsStudyLockCompleted(payload) {
+      return callOperation({ baseUrl, op: requireOp("statsStudyLockCompleted"), body: payload });
+    },
+    async statsUpdateSettings(payload) {
+      return callOperation({ baseUrl, op: requireOp("statsUpdateSettings"), body: payload });
     },
   };
 }
