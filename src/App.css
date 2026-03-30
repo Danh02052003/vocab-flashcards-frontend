@@ -1271,6 +1271,37 @@ td {
   padding: 20px;
 }
 
+.study-route-loading {
+  min-height: calc(100vh - 28px);
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+
+.study-route-loading-card {
+  width: min(520px, 100%);
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+  text-align: center;
+  padding: 24px;
+  border: 1px solid rgba(129, 184, 255, 0.22);
+  border-radius: 18px;
+  background: linear-gradient(170deg, rgba(8, 31, 67, 0.88), rgba(4, 19, 44, 0.94));
+  color: #dbeafe;
+  box-shadow: 0 16px 36px rgba(2, 9, 23, 0.42);
+}
+
+.study-route-loading-card .spinner-wrap {
+  color: #bfdbfe;
+  font-size: 1.05rem;
+}
+
+.study-route-loading-card p {
+  margin: 0;
+  color: rgba(191, 219, 254, 0.78);
+}
+
 .study-lock-card {
   width: min(940px, 100%);
   border: 1px solid rgba(129, 184, 255, 0.25);

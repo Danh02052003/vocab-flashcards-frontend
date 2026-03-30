@@ -79,6 +79,17 @@ function ConfettiLayer({ show }) {
   );
 }
 
+function StudyRouteLoading({ label, detail }) {
+  return (
+    <div className="study-route-loading" role="status" aria-live="polite">
+      <div className="study-route-loading-card">
+        <Spinner label={label} />
+        {detail ? <p>{detail}</p> : null}
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const queryParams = new URLSearchParams(window.location.search);
   const extGoal = Number(queryParams.get("extGoal") || 0);
@@ -142,7 +153,7 @@ function MainApp({ forceStudyLock, initialStudyVocabId, extensionPlan }) {
     const user = getJson(AUTH_USER_KEY, null);
     return Boolean(token) && !user;
   });
-  const [studyLock, setStudyLock] = useState({ open: false, card: null, pool: [] });
+  const [studyLock, setStudyLock] = useState({ open: false, card: null, pool: [], allowExit: false });
   const forceStudyLockHandledRef = useRef(false);
 
   const { items, push, dismiss } = useToasts();
@@ -298,7 +309,7 @@ function MainApp({ forceStudyLock, initialStudyVocabId, extensionPlan }) {
     if (!card) {
       card = pool[Math.floor(Math.random() * pool.length)];
     }
-    setStudyLock({ open: true, card, pool });
+    setStudyLock({ open: true, card, pool, allowExit: false });
 
     if (typeof window !== "undefined") {
       try {
@@ -312,13 +323,13 @@ function MainApp({ forceStudyLock, initialStudyVocabId, extensionPlan }) {
 
   useEffect(() => {
     const onBeforeUnload = (event) => {
-      if (!studyLock.open) return;
+      if (!studyLock.open || studyLock.allowExit) return;
       event.preventDefault();
       event.returnValue = "";
     };
     window.addEventListener("beforeunload", onBeforeUnload);
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
-  }, [studyLock.open]);
+  }, [studyLock.open, studyLock.allowExit]);
 
   useEffect(() => {
     if (!forceStudyLock || !client || authChecking || !authSession?.token || forceStudyLockHandledRef.current) return;
@@ -363,6 +374,15 @@ function MainApp({ forceStudyLock, initialStudyVocabId, extensionPlan }) {
     window.location.hash = next;
   };
 
+  const showStudyRouteLoading =
+    page === "study-lock" &&
+    !studyLock.open &&
+    (
+      loading ||
+      authChecking ||
+      (forceStudyLock && Boolean(authSession?.token) && Boolean(client))
+    );
+
   const logout = useCallback(async () => {
     try {
       if (client?.has("authLogout")) {
@@ -374,7 +394,7 @@ function MainApp({ forceStudyLock, initialStudyVocabId, extensionPlan }) {
       removeKey(AUTH_TOKEN_KEY);
       removeKey(AUTH_USER_KEY);
       setAuthSession({ token: "", user: null });
-      setStudyLock({ open: false, card: null, pool: [] });
+      setStudyLock({ open: false, card: null, pool: [], allowExit: false });
       setStats({
         streak: 0,
         lastActivityDate: "",
@@ -431,7 +451,14 @@ function MainApp({ forceStudyLock, initialStudyVocabId, extensionPlan }) {
       {authSession?.token && page !== "study-lock" ? <Nav page={page} onChange={changePage} onLogout={logout} /> : null}
 
       <main className="content">
-        {loading || authChecking ? <Spinner label={loading ? "Reading OpenAPI..." : "Checking session..."} /> : null}
+        {showStudyRouteLoading ? (
+          <StudyRouteLoading
+            label={loading ? "Loading study page..." : authChecking ? "Checking login..." : "Preparing your vocabulary card..."}
+            detail={loading ? "Loading app data first." : authChecking ? "Verifying your saved session." : "Locking the study tab to one word."}
+          />
+        ) : null}
+
+        {(loading || authChecking) && page !== "study-lock" ? <Spinner label={loading ? "Reading OpenAPI..." : "Checking session..."} /> : null}
 
         {!loading && error ? (
           <ErrorState title="Backend connection failed" message={error} actionLabel="Retry" onAction={() => loadOpenApi(true)}>
@@ -495,9 +522,12 @@ function MainApp({ forceStudyLock, initialStudyVocabId, extensionPlan }) {
             // ignore
           }
         }}
+        onSuccessfulExitStart={() => {
+          setStudyLock((prev) => ({ ...prev, allowExit: true }));
+        }}
         onUnlock={() => {
           forceStudyLockHandledRef.current = false;
-          setStudyLock({ open: false, card: null, pool: [] });
+          setStudyLock({ open: false, card: null, pool: [], allowExit: false });
         }}
       />
       <Toast items={items} onDismiss={dismiss} />

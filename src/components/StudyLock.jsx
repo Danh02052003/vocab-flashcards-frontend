@@ -70,7 +70,7 @@ function notifyExtensionStudyFinished(vocabId) {
   );
 }
 
-export default function StudyLock({ open, card, pool, api, onUnlock, onToast, onCompleted, closeOnSuccess = false }) {
+export default function StudyLock({ open, card, pool, api, onUnlock, onToast, onCompleted, onSuccessfulExitStart, closeOnSuccess = false }) {
   const [step, setStep] = useState(0);
   const [checking, setChecking] = useState(false);
   const [errorText, setErrorText] = useState("");
@@ -88,6 +88,7 @@ export default function StudyLock({ open, card, pool, api, onUnlock, onToast, on
     checked: false,
     correct: false,
     issues: [],
+    issueDetails: [],
     aiReason: "",
     suggestion: "",
   });
@@ -113,6 +114,7 @@ export default function StudyLock({ open, card, pool, api, onUnlock, onToast, on
       checked: false,
       correct: false,
       issues: [],
+      issueDetails: [],
       aiReason: "",
       suggestion: "",
     });
@@ -191,6 +193,16 @@ export default function StudyLock({ open, card, pool, api, onUnlock, onToast, on
 
   if (!open || !card) return null;
 
+  function buildIssueDetails(items) {
+    return (Array.isArray(items) ? items : [])
+      .map((item) => ({
+        area: String(item?.area || "").trim(),
+        problem: String(item?.problem || "").trim(),
+        fix: String(item?.fix || "").trim(),
+      }))
+      .filter((item) => item.area || item.problem || item.fix);
+  }
+
   function submitPick(pickedValue) {
     const ok = normalizeText(pickedValue) === normalizeText(term);
     setMcqValue(pickedValue);
@@ -220,6 +232,25 @@ export default function StudyLock({ open, card, pool, api, onUnlock, onToast, on
     setErrorText("");
   }
 
+  function finishSuccess(successMessage) {
+    notifyExtensionStudyFinished(card?.id);
+    onCompleted?.();
+    onToast(successMessage, "success");
+
+    if (closeOnSuccess) {
+      onSuccessfulExitStart?.();
+      try {
+        window.close();
+      } catch (_) {
+        // ignore close failures
+      }
+      setExitCountdown(5);
+      return;
+    }
+
+    setExitCountdown(5);
+  }
+
   async function submitSentence() {
     const text = String(sentence || "").trim();
     const suggestion = buildSentenceSuggestion(term, card);
@@ -231,27 +262,31 @@ export default function StudyLock({ open, card, pool, api, onUnlock, onToast, on
       normalizedUserSentence &&
       (normalizedUserSentence === normalizedExampleEn || normalizedUserSentence === normalizedExampleVi)
     ) {
-      notifyExtensionStudyFinished(card?.id);
       setSentenceFeedback({
         checked: true,
         correct: true,
         issues: [],
+        issueDetails: [],
         aiReason: "",
         suggestion,
       });
-      setExitCountdown(5);
-      onCompleted?.();
-      onToast("Perfect. Your sentence matches a saved example.", "success");
+      finishSuccess("Perfect. Your sentence matches a saved example.");
       return;
     }
 
     const issues = localSentenceIssues(text, term);
 
     if (issues.length > 0) {
+      const issueDetails = issues.map((issue) => ({
+        area: "basic check",
+        problem: issue,
+        fix: issue.includes('target word') ? `Add "${term}" directly into the sentence.` : "Rewrite the sentence more clearly and try again.",
+      }));
       setSentenceFeedback({
         checked: true,
         correct: false,
         issues,
+        issueDetails,
         aiReason: "",
         suggestion,
       });
@@ -268,16 +303,14 @@ export default function StudyLock({ open, card, pool, api, onUnlock, onToast, on
         });
 
         if (!judged?.isEquivalent) {
+          const issueDetails = buildIssueDetails(judged?.issues);
           setSentenceFeedback({
             checked: true,
             correct: false,
-            issues: [
-              "Meaning usage may be off for this word.",
-              "Grammar may need fixing (verb tense/article/preposition).",
-              "Sentence structure can be improved for natural flow.",
-            ],
+            issues: issueDetails.map((item) => item.problem || item.fix).filter(Boolean),
+            issueDetails,
             aiReason: judged?.reasonShort || "AI says the sentence does not match the target meaning.",
-            suggestion,
+            suggestion: judged?.suggestedSentence || suggestion,
           });
           return;
         }
@@ -286,6 +319,13 @@ export default function StudyLock({ open, card, pool, api, onUnlock, onToast, on
           checked: true,
           correct: false,
           issues: ["AI check failed. Please try again."],
+          issueDetails: [
+            {
+              area: "AI check",
+              problem: "The AI request failed.",
+              fix: "Try submit again in a few seconds.",
+            },
+          ],
           aiReason: error.message || "",
           suggestion,
         });
@@ -299,13 +339,11 @@ export default function StudyLock({ open, card, pool, api, onUnlock, onToast, on
       checked: true,
       correct: true,
       issues: [],
+      issueDetails: [],
       aiReason: "",
-      suggestion,
+      suggestion: "",
     });
-    notifyExtensionStudyFinished(card?.id);
-    setExitCountdown(5);
-    onCompleted?.();
-    onToast("Great job. Study lock completed.", "success");
+    finishSuccess("Great job. Study lock completed.");
   }
 
   return (
@@ -436,6 +474,7 @@ export default function StudyLock({ open, card, pool, api, onUnlock, onToast, on
                     checked: false,
                     correct: false,
                     issues: [],
+                    issueDetails: [],
                     aiReason: "",
                     suggestion: "",
                   });
@@ -461,11 +500,22 @@ export default function StudyLock({ open, card, pool, api, onUnlock, onToast, on
               <div className="study-sentence-feedback">
                 <strong>Your sentence is not correct yet.</strong>
                 {sentenceFeedback.aiReason ? <p>{sentenceFeedback.aiReason}</p> : null}
-                <ul>
-                  {sentenceFeedback.issues.map((issue) => (
-                    <li key={issue}>{issue}</li>
-                  ))}
-                </ul>
+                {sentenceFeedback.issueDetails.length ? (
+                  <ul>
+                    {sentenceFeedback.issueDetails.map((issue, index) => (
+                      <li key={`${issue.area}-${index}`}>
+                        {issue.area ? <strong>{issue.area}:</strong> : null} {issue.problem}
+                        {issue.fix ? ` Fix: ${issue.fix}` : ""}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <ul>
+                    {sentenceFeedback.issues.map((issue) => (
+                      <li key={issue}>{issue}</li>
+                    ))}
+                  </ul>
+                )}
                 {sentenceFeedback.suggestion ? (
                   <p className="study-correct-answer">
                     Suggested complete sentence: <strong>{sentenceFeedback.suggestion}</strong>
