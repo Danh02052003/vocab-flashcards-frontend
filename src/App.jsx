@@ -21,7 +21,7 @@ import Advanced from "./pages/Advanced";
 
 import "./App.css";
 
-const VALID_PAGES = ["home", "review", "add", "list", "sync", "advanced"];
+const VALID_PAGES = ["home", "review", "add", "list", "sync", "advanced", "study-lock"];
 const PREFS_KEY = "ui_prefs";
 const ONBOARD_KEY = "onboarding_done";
 const AUTH_TOKEN_KEY = "auth_token";
@@ -83,13 +83,15 @@ export default function App() {
   const queryParams = new URLSearchParams(window.location.search);
   const extGoal = Number(queryParams.get("extGoal") || 0);
   const extInterval = Number(queryParams.get("extInterval") || 0);
+  const extRepeat = queryParams.get("extRepeat") === "1";
   return (
     <MainApp
       forceStudyLock={queryParams.get("forceStudyLock") === "1"}
       extensionPlan={{
-        hasPlan: extGoal > 0 || extInterval > 0,
+        hasPlan: extGoal > 0 || extInterval > 0 || extRepeat,
         studyLockTargetPerDay: extGoal > 0 ? extGoal : null,
         studyLockIntervalMinutes: extInterval > 0 ? extInterval : null,
+        studyLockRepeatEnabled: extRepeat,
       }}
     />
   );
@@ -120,8 +122,10 @@ function MainApp({ forceStudyLock, extensionPlan }) {
     accuracy: 0,
     dailyNewCreatedCount: 0,
     dailyStudyLockCompletedCount: 0,
+    dailyStudyLockVocabIds: [],
     studyLockTargetPerDay: 5,
     studyLockIntervalMinutes: 45,
+    studyLockRepeatEnabled: false,
   });
 
   const [showOnboarding, setShowOnboarding] = useState(() => !getJson(ONBOARD_KEY, false));
@@ -238,6 +242,20 @@ function MainApp({ forceStudyLock, extensionPlan }) {
       }
     }
 
+    const repeatEnabled = Boolean(extensionPlan?.studyLockRepeatEnabled ?? stats?.studyLockRepeatEnabled);
+    const repeatIds = Array.isArray(stats?.dailyStudyLockVocabIds) ? stats.dailyStudyLockVocabIds.filter(Boolean) : [];
+    const reachedGoal = Number(stats?.dailyStudyLockCompletedCount || 0) >= Number(stats?.studyLockTargetPerDay || 5);
+
+    if (repeatEnabled && reachedGoal && repeatIds.length && client.has("listVocab")) {
+      try {
+        const data = await client.listVocab({ page: 1, limit: Math.max(100, repeatIds.length * 4) });
+        const items = collect(data);
+        pool = items.filter((item) => repeatIds.includes(String(item.id)));
+      } catch (_) {
+        // fallback below
+      }
+    }
+
     if (!pool.length && client.has("listVocab")) {
       try {
         const data = await client.listVocab({ page: 1, limit: 100 });
@@ -253,14 +271,14 @@ function MainApp({ forceStudyLock, extensionPlan }) {
       seen.add(item.id);
       return true;
     });
-  }, [client]);
+  }, [client, extensionPlan?.studyLockRepeatEnabled, stats?.dailyStudyLockCompletedCount, stats?.dailyStudyLockVocabIds, stats?.studyLockRepeatEnabled, stats?.studyLockTargetPerDay]);
 
   const triggerStudyLock = useCallback(async ({ manual = false } = {}) => {
     if (!client || studyLock.open) return;
     const pool = await fetchStudyPool();
     if (!pool.length) {
       if (manual) push("No vocabulary found to start study lock.", "warning");
-      return;
+      return false;
     }
 
     const card = pool[Math.floor(Math.random() * pool.length)];
@@ -273,6 +291,7 @@ function MainApp({ forceStudyLock, extensionPlan }) {
         // ignore
       }
     }
+    return true;
   }, [client, studyLock.open, fetchStudyPool, push]);
 
   useEffect(() => {
@@ -286,11 +305,19 @@ function MainApp({ forceStudyLock, extensionPlan }) {
   }, [studyLock.open]);
 
   useEffect(() => {
-    if (!forceStudyLock || !client) return;
-    void triggerStudyLock({ manual: true });
-    const cleanUrl = `${window.location.pathname}${window.location.hash || "#home"}`;
-    window.history.replaceState({}, "", cleanUrl);
-  }, [forceStudyLock, client, triggerStudyLock]);
+    if (!forceStudyLock || !client || authChecking || !authSession?.token) return;
+    let active = true;
+    const run = async () => {
+      const opened = await triggerStudyLock({ manual: true });
+      if (!active || !opened) return;
+      const cleanUrl = `${window.location.pathname}${window.location.hash || "#home"}`;
+      window.history.replaceState({}, "", cleanUrl);
+    };
+    void run();
+    return () => {
+      active = false;
+    };
+  }, [forceStudyLock, client, authChecking, authSession?.token, triggerStudyLock]);
 
   useEffect(() => {
     if (!extensionPlan?.hasPlan || !client?.has("statsUpdateSettings") || !authSession?.token) return;
@@ -301,6 +328,7 @@ function MainApp({ forceStudyLock, extensionPlan }) {
     if (extensionPlan.studyLockIntervalMinutes) {
       payload.studyLockIntervalMinutes = extensionPlan.studyLockIntervalMinutes;
     }
+    payload.studyLockRepeatEnabled = Boolean(extensionPlan.studyLockRepeatEnabled);
     if (!Object.keys(payload).length) return;
     void client
       .statsUpdateSettings(payload)
@@ -335,8 +363,10 @@ function MainApp({ forceStudyLock, extensionPlan }) {
         accuracy: 0,
         dailyNewCreatedCount: 0,
         dailyStudyLockCompletedCount: 0,
+        dailyStudyLockVocabIds: [],
         studyLockTargetPerDay: 5,
         studyLockIntervalMinutes: 45,
+        studyLockRepeatEnabled: false,
       });
     }
   }, [client]);
@@ -368,6 +398,7 @@ function MainApp({ forceStudyLock, extensionPlan }) {
   const renderPage = () => {
     if (!client) return null;
     if (page === "home") return <Home api={client} stats={stats} onNavigate={changePage} />;
+    if (page === "study-lock") return null;
     if (page === "review") return <Review api={client} onToast={push} onSessionComplete={onReviewSessionComplete} onStats={setStats} />;
     if (page === "list") return <List api={client} onToast={push} />;
     if (page === "sync") return <SyncPage api={client} onToast={push} />;
@@ -377,7 +408,7 @@ function MainApp({ forceStudyLock, extensionPlan }) {
 
   return (
     <div className="app-shell">
-      {authSession?.token ? <Nav page={page} onChange={changePage} onLogout={logout} /> : null}
+      {authSession?.token && page !== "study-lock" ? <Nav page={page} onChange={changePage} onLogout={logout} /> : null}
 
       <main className="content">
         {loading || authChecking ? <Spinner label={loading ? "Reading OpenAPI..." : "Checking session..."} /> : null}
@@ -412,7 +443,7 @@ function MainApp({ forceStudyLock, extensionPlan }) {
         {!loading && !error && !authChecking && authSession?.token ? renderPage() : null}
       </main>
 
-      <button type="button" className="fab-add" onClick={() => changePage("add")} disabled={!authSession?.token} style={{ display: authSession?.token ? "block" : "none" }}>
+      <button type="button" className="fab-add" onClick={() => changePage("add")} disabled={!authSession?.token} style={{ display: authSession?.token && page !== "study-lock" ? "block" : "none" }}>
         Add
       </button>
 
@@ -432,11 +463,13 @@ function MainApp({ forceStudyLock, extensionPlan }) {
         card={studyLock.card}
         pool={studyLock.pool}
         api={client}
+        closeOnSuccess={Boolean(forceStudyLock)}
         onToast={push}
         onCompleted={async () => {
           if (!client?.has("statsStudyLockCompleted")) return;
           try {
-            const remoteStats = await client.statsStudyLockCompleted({ count: 1 });
+            const payload = { count: 1, vocabId: studyLock?.card?.id || null };
+            const remoteStats = await client.statsStudyLockCompleted(payload);
             setStats(remoteStats);
           } catch (_) {
             // ignore

@@ -58,7 +58,19 @@ function localSentenceIssues(text, term) {
   return issues;
 }
 
-export default function StudyLock({ open, card, pool, api, onUnlock, onToast, onCompleted }) {
+function notifyExtensionStudyFinished(vocabId) {
+  if (typeof window === "undefined") return;
+  window.postMessage(
+    {
+      source: "voucab-web",
+      type: "study-lock-finished",
+      vocabId: vocabId || null,
+    },
+    "*"
+  );
+}
+
+export default function StudyLock({ open, card, pool, api, onUnlock, onToast, onCompleted, closeOnSuccess = false }) {
   const [step, setStep] = useState(0);
   const [checking, setChecking] = useState(false);
   const [errorText, setErrorText] = useState("");
@@ -159,7 +171,15 @@ export default function StudyLock({ open, card, pool, api, onUnlock, onToast, on
       setExitCountdown((prev) => {
         if (prev <= 1) {
           window.clearInterval(timer);
-          window.location.hash = "home";
+          if (closeOnSuccess) {
+            try {
+              window.close();
+            } catch (_) {
+              // ignore close failures
+            }
+          } else {
+            window.location.hash = "home";
+          }
           onUnlock?.();
           return 0;
         }
@@ -167,7 +187,7 @@ export default function StudyLock({ open, card, pool, api, onUnlock, onToast, on
       });
     }, 1000);
     return () => window.clearInterval(timer);
-  }, [open, sentenceFeedback.correct, exitCountdown, onUnlock]);
+  }, [open, sentenceFeedback.correct, exitCountdown, onUnlock, closeOnSuccess]);
 
   if (!open || !card) return null;
 
@@ -211,6 +231,7 @@ export default function StudyLock({ open, card, pool, api, onUnlock, onToast, on
       normalizedUserSentence &&
       (normalizedUserSentence === normalizedExampleEn || normalizedUserSentence === normalizedExampleVi)
     ) {
+      notifyExtensionStudyFinished(card?.id);
       setSentenceFeedback({
         checked: true,
         correct: true,
@@ -281,6 +302,7 @@ export default function StudyLock({ open, card, pool, api, onUnlock, onToast, on
       aiReason: "",
       suggestion,
     });
+    notifyExtensionStudyFinished(card?.id);
     setExitCountdown(5);
     onCompleted?.();
     onToast("Great job. Study lock completed.", "success");
@@ -455,7 +477,7 @@ export default function StudyLock({ open, card, pool, api, onUnlock, onToast, on
             {sentenceFeedback.checked && sentenceFeedback.correct ? (
               <div className="study-sentence-feedback study-sentence-ok">
                 <strong>Excellent. Your sentence is correct.</strong>
-                <p>Returning to Home in {exitCountdown}s...</p>
+                <p>{closeOnSuccess ? `Closing this study tab in ${exitCountdown}s...` : `Returning to Home in ${exitCountdown}s...`}</p>
               </div>
             ) : null}
           </div>
