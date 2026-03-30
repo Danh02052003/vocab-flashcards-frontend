@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { normalizeBaseUrl, DEFAULT_BASE_URL } from "./api/base";
 import { fetchOpenApi } from "./api/openapi";
 import { createApiClient } from "./api/client";
@@ -84,9 +84,11 @@ export default function App() {
   const extGoal = Number(queryParams.get("extGoal") || 0);
   const extInterval = Number(queryParams.get("extInterval") || 0);
   const extRepeat = queryParams.get("extRepeat") === "1";
+  const studyVocabId = queryParams.get("studyVocabId") || "";
   return (
     <MainApp
       forceStudyLock={queryParams.get("forceStudyLock") === "1"}
+      initialStudyVocabId={studyVocabId}
       extensionPlan={{
         hasPlan: extGoal > 0 || extInterval > 0 || extRepeat,
         studyLockTargetPerDay: extGoal > 0 ? extGoal : null,
@@ -97,7 +99,7 @@ export default function App() {
   );
 }
 
-function MainApp({ forceStudyLock, extensionPlan }) {
+function MainApp({ forceStudyLock, initialStudyVocabId, extensionPlan }) {
   const baseUrl = useMemo(() => normalizeBaseUrl(DEFAULT_BASE_URL), []);
   const [page, setPage] = useState(pageFromHash());
 
@@ -141,6 +143,7 @@ function MainApp({ forceStudyLock, extensionPlan }) {
     return Boolean(token) && !user;
   });
   const [studyLock, setStudyLock] = useState({ open: false, card: null, pool: [] });
+  const forceStudyLockHandledRef = useRef(false);
 
   const { items, push, dismiss } = useToasts();
 
@@ -273,15 +276,28 @@ function MainApp({ forceStudyLock, extensionPlan }) {
     });
   }, [client, extensionPlan?.studyLockRepeatEnabled, stats?.dailyStudyLockCompletedCount, stats?.dailyStudyLockVocabIds, stats?.studyLockRepeatEnabled, stats?.studyLockTargetPerDay]);
 
-  const triggerStudyLock = useCallback(async ({ manual = false } = {}) => {
-    if (!client || studyLock.open) return;
+  const triggerStudyLock = useCallback(async ({ manual = false, lockedVocabId = "" } = {}) => {
+    if (!client || studyLock.open) return { opened: false, selectedId: "" };
     const pool = await fetchStudyPool();
     if (!pool.length) {
       if (manual) push("No vocabulary found to start study lock.", "warning");
-      return false;
+      return { opened: false, selectedId: "" };
     }
 
-    const card = pool[Math.floor(Math.random() * pool.length)];
+    let card = null;
+    if (lockedVocabId) {
+      card = pool.find((item) => String(item.id) === String(lockedVocabId)) || null;
+      if (!card && client.has("getVocab")) {
+        try {
+          card = await client.getVocab(lockedVocabId);
+        } catch (_) {
+          card = null;
+        }
+      }
+    }
+    if (!card) {
+      card = pool[Math.floor(Math.random() * pool.length)];
+    }
     setStudyLock({ open: true, card, pool });
 
     if (typeof window !== "undefined") {
@@ -291,7 +307,7 @@ function MainApp({ forceStudyLock, extensionPlan }) {
         // ignore
       }
     }
-    return true;
+    return { opened: true, selectedId: String(card?.id || "") };
   }, [client, studyLock.open, fetchStudyPool, push]);
 
   useEffect(() => {
@@ -305,19 +321,23 @@ function MainApp({ forceStudyLock, extensionPlan }) {
   }, [studyLock.open]);
 
   useEffect(() => {
-    if (!forceStudyLock || !client || authChecking || !authSession?.token) return;
+    if (!forceStudyLock || !client || authChecking || !authSession?.token || forceStudyLockHandledRef.current) return;
     let active = true;
     const run = async () => {
-      const opened = await triggerStudyLock({ manual: true });
-      if (!active || !opened) return;
-      const cleanUrl = `${window.location.pathname}${window.location.hash || "#home"}`;
-      window.history.replaceState({}, "", cleanUrl);
+      const result = await triggerStudyLock({ manual: true, lockedVocabId: initialStudyVocabId });
+      if (!active || !result?.opened) return;
+      forceStudyLockHandledRef.current = true;
+      const nextParams = new URLSearchParams(window.location.search);
+      nextParams.set("forceStudyLock", "1");
+      nextParams.set("studyVocabId", result.selectedId);
+      const nextSearch = nextParams.toString();
+      window.history.replaceState({}, "", `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ""}#study-lock`);
     };
     void run();
     return () => {
       active = false;
     };
-  }, [forceStudyLock, client, authChecking, authSession?.token, triggerStudyLock]);
+  }, [forceStudyLock, client, authChecking, authSession?.token, triggerStudyLock, initialStudyVocabId]);
 
   useEffect(() => {
     if (!extensionPlan?.hasPlan || !client?.has("statsUpdateSettings") || !authSession?.token) return;
@@ -476,6 +496,7 @@ function MainApp({ forceStudyLock, extensionPlan }) {
           }
         }}
         onUnlock={() => {
+          forceStudyLockHandledRef.current = false;
           setStudyLock({ open: false, card: null, pool: [] });
         }}
       />
