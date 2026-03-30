@@ -127,7 +127,11 @@ function MainApp({ forceStudyLock }) {
     token: getText(AUTH_TOKEN_KEY, ""),
     user: getJson(AUTH_USER_KEY, null),
   }));
-  const [authChecking, setAuthChecking] = useState(true);
+  const [authChecking, setAuthChecking] = useState(() => {
+    const token = getText(AUTH_TOKEN_KEY, "");
+    const user = getJson(AUTH_USER_KEY, null);
+    return Boolean(token) && !user;
+  });
   const [studyLock, setStudyLock] = useState({ open: false, card: null, pool: [] });
   const [studyMeta, setStudyMeta] = useState(() =>
     getJson(STUDY_LOCK_KEY, {
@@ -187,17 +191,18 @@ function MainApp({ forceStudyLock }) {
         if (!active) return;
         setJson(AUTH_USER_KEY, user);
         setAuthSession((prev) => ({ ...(prev || {}), user }));
+        if (active) setAuthChecking(false);
         if (client.has("statsGet")) {
-          const remoteStats = await client.getStats();
-          if (active) setStats(remoteStats);
+          void client.getStats().then((remoteStats) => {
+            if (active && remoteStats) setStats(remoteStats);
+          }).catch(() => {});
         }
       } catch (_) {
         if (!active) return;
         removeKey(AUTH_TOKEN_KEY);
         removeKey(AUTH_USER_KEY);
         setAuthSession({ token: "", user: null });
-      } finally {
-        if (active) setAuthChecking(false);
+        setAuthChecking(false);
       }
     };
     void syncAuth();
@@ -205,6 +210,12 @@ function MainApp({ forceStudyLock }) {
       active = false;
     };
   }, [client, authSession?.token]);
+
+  useEffect(() => {
+    if (authSession?.token && authSession?.user) {
+      setAuthChecking(false);
+    }
+  }, [authSession?.token, authSession?.user]);
 
   useEffect(() => {
     const onHashChange = () => setPage(pageFromHash());
