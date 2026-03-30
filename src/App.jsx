@@ -11,7 +11,6 @@ import Spinner from "./components/Spinner";
 import ErrorState from "./components/ErrorState";
 import Onboarding from "./components/Onboarding";
 import StudyLock from "./components/StudyLock";
-import StrictHelper from "./components/StrictHelper";
 
 import Home from "./pages/Home";
 import Add from "./pages/Add";
@@ -25,7 +24,6 @@ import "./App.css";
 const VALID_PAGES = ["home", "review", "add", "list", "sync", "advanced"];
 const PREFS_KEY = "ui_prefs";
 const ONBOARD_KEY = "onboarding_done";
-const STUDY_LOCK_KEY = "study_lock_meta";
 const AUTH_TOKEN_KEY = "auth_token";
 const AUTH_USER_KEY = "auth_user";
 
@@ -83,13 +81,21 @@ function ConfettiLayer({ show }) {
 
 export default function App() {
   const queryParams = new URLSearchParams(window.location.search);
-  if (queryParams.get("mode") === "helper") {
-    return <StrictHelper />;
-  }
-  return <MainApp forceStudyLock={queryParams.get("forceStudyLock") === "1"} />;
+  const extGoal = Number(queryParams.get("extGoal") || 0);
+  const extInterval = Number(queryParams.get("extInterval") || 0);
+  return (
+    <MainApp
+      forceStudyLock={queryParams.get("forceStudyLock") === "1"}
+      extensionPlan={{
+        hasPlan: extGoal > 0 || extInterval > 0,
+        studyLockTargetPerDay: extGoal > 0 ? extGoal : null,
+        studyLockIntervalMinutes: extInterval > 0 ? extInterval : null,
+      }}
+    />
+  );
 }
 
-function MainApp({ forceStudyLock }) {
+function MainApp({ forceStudyLock, extensionPlan }) {
   const baseUrl = useMemo(() => normalizeBaseUrl(DEFAULT_BASE_URL), []);
   const [page, setPage] = useState(pageFromHash());
 
@@ -99,12 +105,10 @@ function MainApp({ forceStudyLock }) {
   const [client, setClient] = useState(null);
   const [schemaRefreshedForAuth, setSchemaRefreshedForAuth] = useState(false);
 
-  const [prefs, setPrefs] = useState(() =>
+  const [prefs] = useState(() =>
     getJson(PREFS_KEY, {
       darkMode: false,
       highContrast: false,
-      studyLockEnabled: true,
-      studyIntervalMinutes: 45,
     })
   );
 
@@ -133,16 +137,6 @@ function MainApp({ forceStudyLock }) {
     return Boolean(token) && !user;
   });
   const [studyLock, setStudyLock] = useState({ open: false, card: null, pool: [] });
-  const [studyMeta, setStudyMeta] = useState(() =>
-    getJson(STUDY_LOCK_KEY, {
-      lastPromptAt: Date.now(),
-    })
-  );
-  const studyIntervalMs = useMemo(() => {
-    const minutesRaw = Number(stats?.studyLockIntervalMinutes || 45);
-    const minutes = Number.isFinite(minutesRaw) ? Math.max(5, Math.min(240, minutesRaw)) : 45;
-    return minutes * 60 * 1000;
-  }, [stats?.studyLockIntervalMinutes]);
 
   const { items, push, dismiss } = useToasts();
 
@@ -229,10 +223,6 @@ function MainApp({ forceStudyLock }) {
     document.body.classList.toggle("high-contrast", Boolean(prefs.highContrast));
   }, [prefs]);
 
-  useEffect(() => {
-    setJson(STUDY_LOCK_KEY, studyMeta);
-  }, [studyMeta]);
-
   const fetchStudyPool = useCallback(async () => {
     if (!client) return [];
 
@@ -275,7 +265,6 @@ function MainApp({ forceStudyLock }) {
 
     const card = pool[Math.floor(Math.random() * pool.length)];
     setStudyLock({ open: true, card, pool });
-    setStudyMeta({ lastPromptAt: Date.now() });
 
     if (typeof window !== "undefined") {
       try {
@@ -285,26 +274,6 @@ function MainApp({ forceStudyLock }) {
       }
     }
   }, [client, studyLock.open, fetchStudyPool, push]);
-
-  useEffect(() => {
-    if (!prefs.studyLockEnabled || !client) return undefined;
-
-    const ensureStartAt = Number(studyMeta?.lastPromptAt || 0);
-    if (!ensureStartAt) {
-      setStudyMeta({ lastPromptAt: Date.now() });
-    }
-
-    const timer = window.setInterval(() => {
-      if (studyLock.open) return;
-      const last = Number(studyMeta?.lastPromptAt || 0);
-      if (!last) return;
-      if (Date.now() - last >= studyIntervalMs) {
-        void triggerStudyLock();
-      }
-    }, 30 * 1000);
-
-    return () => window.clearInterval(timer);
-  }, [prefs.studyLockEnabled, client, studyLock.open, studyMeta?.lastPromptAt, triggerStudyLock, studyIntervalMs]);
 
   useEffect(() => {
     const onBeforeUnload = (event) => {
@@ -322,6 +291,24 @@ function MainApp({ forceStudyLock }) {
     const cleanUrl = `${window.location.pathname}${window.location.hash || "#home"}`;
     window.history.replaceState({}, "", cleanUrl);
   }, [forceStudyLock, client, triggerStudyLock]);
+
+  useEffect(() => {
+    if (!extensionPlan?.hasPlan || !client?.has("statsUpdateSettings") || !authSession?.token) return;
+    const payload = {};
+    if (extensionPlan.studyLockTargetPerDay) {
+      payload.studyLockTargetPerDay = extensionPlan.studyLockTargetPerDay;
+    }
+    if (extensionPlan.studyLockIntervalMinutes) {
+      payload.studyLockIntervalMinutes = extensionPlan.studyLockIntervalMinutes;
+    }
+    if (!Object.keys(payload).length) return;
+    void client
+      .statsUpdateSettings(payload)
+      .then((remoteStats) => {
+        setStats(remoteStats);
+      })
+      .catch(() => {});
+  }, [extensionPlan, client, authSession?.token]);
 
   const changePage = (next) => {
     setPage(next);
@@ -393,92 +380,6 @@ function MainApp({ forceStudyLock }) {
       {authSession?.token ? <Nav page={page} onChange={changePage} onLogout={logout} /> : null}
 
       <main className="content">
-        {authSession?.token ? (
-          <div className="utility-bar">
-            <div className="meta-line">
-              <span className="mono">{baseUrl}</span>
-              {client ? <span>{Object.values(client.core || {}).filter(Boolean).length} core endpoints found</span> : null}
-              {authSession?.user?.email ? <span>{authSession.user.email}</span> : null}
-            </div>
-            <div className="utility-actions">
-              <button type="button" className="btn" onClick={() => setPrefs((p) => ({ ...p, darkMode: !p.darkMode }))}>
-                {prefs.darkMode ? "Light" : "Dark"}
-              </button>
-              <button type="button" className="btn" onClick={() => setPrefs((p) => ({ ...p, highContrast: !p.highContrast }))}>
-                {prefs.highContrast ? "Normal" : "High Contrast"}
-              </button>
-              <button
-                type="button"
-                className="btn"
-                onClick={() => {
-                  const helperUrl = `${window.location.origin}${window.location.pathname}?mode=helper`;
-                  const helperWindow = window.open(helperUrl, "_blank", "noopener,noreferrer");
-                  if (!helperWindow) {
-                    push("Popup blocked. Please allow popups and try again.", "warning");
-                  } else {
-                    helperWindow.focus();
-                    push("Strict helper tab opened.", "success");
-                  }
-                }}
-              >
-                Open Strict Helper
-              </button>
-              <input
-                type="number"
-                min="1"
-                max="100"
-                step="1"
-                value={stats.studyLockTargetPerDay || 5}
-                onChange={(e) => setStats((prev) => ({ ...prev, studyLockTargetPerDay: Number(e.target.value || 5) }))}
-                title="Words per day"
-                style={{ width: 90 }}
-              />
-              <input
-                type="number"
-                min="5"
-                max="240"
-                step="5"
-                value={stats.studyLockIntervalMinutes || 45}
-                onChange={(e) => setStats((prev) => ({ ...prev, studyLockIntervalMinutes: Number(e.target.value || 45) }))}
-                title="Study interval (minutes)"
-                style={{ width: 90 }}
-              />
-              <button
-                type="button"
-                className="btn"
-                onClick={async () => {
-                  if (!client?.has("statsUpdateSettings")) return;
-                  try {
-                    const remoteStats = await client.statsUpdateSettings({
-                      studyLockTargetPerDay: Number(stats.studyLockTargetPerDay || 5),
-                      studyLockIntervalMinutes: Number(stats.studyLockIntervalMinutes || 45),
-                    });
-                    setStats(remoteStats);
-                    push("Study plan saved.", "success");
-                  } catch (error) {
-                    push(error.message || "Cannot save study plan.", "error");
-                  }
-                }}
-              >
-                Save plan
-              </button>
-              <button type="button" className="btn" onClick={() => setPrefs((p) => ({ ...p, studyLockEnabled: !p.studyLockEnabled }))}>
-                {prefs.studyLockEnabled ? "Study Lock: ON" : "Study Lock: OFF"}
-              </button>
-              <button type="button" className="btn" onClick={() => triggerStudyLock({ manual: true })}>
-                Test Study Lock
-              </button>
-              <button
-                type="button"
-                className="btn"
-                onClick={logout}
-              >
-                Logout
-              </button>
-            </div>
-          </div>
-        ) : null}
-
         {loading || authChecking ? <Spinner label={loading ? "Reading OpenAPI..." : "Checking session..."} /> : null}
 
         {!loading && error ? (
@@ -543,7 +444,6 @@ function MainApp({ forceStudyLock }) {
         }}
         onUnlock={() => {
           setStudyLock({ open: false, card: null, pool: [] });
-          setStudyMeta({ lastPromptAt: Date.now() });
         }}
       />
       <Toast items={items} onDismiss={dismiss} />
