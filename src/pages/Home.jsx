@@ -1,21 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Spinner from "../components/Spinner";
 
-function CircleProgress({ value }) {
-  const safe = Math.max(0, Math.min(100, Number(value) || 0));
-  const style = {
-    background: `conic-gradient(var(--progress-a) ${safe * 3.6}deg, var(--surface-3) 0deg)`,
-  };
-  return (
-    <div className="radial-wrap" style={style}>
-      <div className="radial-inner">
-        <strong>{safe}%</strong>
-        <small>Accuracy</small>
-      </div>
-    </div>
-  );
-}
-
 export default function Home({ api, stats, onNavigate }) {
   const [loading, setLoading] = useState(false);
   const [todayInfo, setTodayInfo] = useState({ todayNew: 0, review: 0 });
