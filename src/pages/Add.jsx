@@ -490,62 +490,112 @@ export default function Add({ api, onToast, onStats }) {
   };
 
   return (
-    <div className="page-grid one">
-      <section className="card">
-        <h2>Add vocab</h2>
-        <p className="muted">Keep the form minimal. Missing IPA, examples, mnemonic, and extra meaning variants will be filled via backend API when available.</p>
+    <div className="page-grid one" style={{ animation: "fadeIn 0.5s ease", maxWidth: "800px", margin: "0 auto" }}>
+      <section className="card glass-panel" style={{ border: "none", padding: "32px", borderRadius: "24px" }}>
+        <h2 className="text-gradient" style={{ fontSize: "2rem", marginBottom: "8px" }}>✨ Add Vocabulary</h2>
+        <p className="muted" style={{ marginBottom: "24px" }}>Keep the form minimal. The AI will magically fill in missing IPA, examples, and mnemonics for you.</p>
 
-        <form onSubmit={onSubmit} className="form-grid">
+        <form onSubmit={onSubmit} className="form-grid" style={{ display: "grid", gap: "20px" }}>
           <div className="field">
-            <label>Term *</label>
-            <input value={form.term} onChange={(e) => update("term", e.target.value)} placeholder="resilient" required />
+            <label style={{ fontWeight: 600, color: "var(--ink)", marginBottom: "8px", display: "block" }}>Term *</label>
+            <input 
+              value={form.term} 
+              onChange={(e) => update("term", e.target.value)} 
+              placeholder="e.g. resilient" 
+              required 
+              style={{ width: "100%", padding: "16px", borderRadius: "16px", border: "1px solid var(--line)", background: "var(--surface-2)", fontSize: "1.1rem", outline: "none", transition: "box-shadow 0.2s" }}
+              onFocus={(e) => e.target.style.boxShadow = "0 0 0 3px rgba(59, 130, 246, 0.3)"}
+              onBlur={(e) => e.target.style.boxShadow = "none"}
+            />
           </div>
 
-          <ChipInput label="Meanings" values={form.meanings} onChange={(v) => update("meanings", v)} placeholder="ben bi" />
+          <div style={{ background: "var(--surface)", padding: "16px", borderRadius: "16px", border: "1px solid var(--line)" }}>
+            <ChipInput label="Meanings" values={form.meanings} onChange={(v) => update("meanings", v)} placeholder="Type meaning and press enter" />
+          </div>
 
-          <div className="field-row two">
+          <div className="field-row two" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
             <div className="field">
-              <label>IPA</label>
-              <input value={form.ipa} onChange={(e) => update("ipa", e.target.value)} placeholder="/uh-bound/" />
+              <label style={{ fontWeight: 600, color: "var(--ink)", marginBottom: "8px", display: "block" }}>IPA</label>
+              <input 
+                value={form.ipa} 
+                onChange={(e) => update("ipa", e.target.value)} 
+                placeholder="/rɪˈzɪl.jənt/" 
+                style={{ width: "100%", padding: "14px", borderRadius: "14px", border: "1px solid var(--line)", background: "var(--surface-2)", outline: "none" }}
+              />
             </div>
             <div className="field">
-              <label>Input method</label>
-              <select value={form.inputMethod} onChange={(e) => update("inputMethod", e.target.value)}>
-                <option value="typed">typed</option>
-                <option value="pasted">pasted</option>
+              <label style={{ fontWeight: 600, color: "var(--ink)", marginBottom: "8px", display: "block" }}>Input Method</label>
+              <select 
+                value={form.inputMethod} 
+                onChange={(e) => update("inputMethod", e.target.value)}
+                style={{ width: "100%", padding: "14px", borderRadius: "14px", border: "1px solid var(--line)", background: "var(--surface-2)", outline: "none" }}
+              >
+                <option value="typed">Manual Typed</option>
+                <option value="pasted">Bulk Pasted</option>
               </select>
             </div>
           </div>
 
-          <div className="field-row two">
+          <div className="field-row two" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
             <div className="field">
-              <label>Example 1</label>
-              <textarea value={form.exampleEn} onChange={(e) => update("exampleEn", e.target.value)} rows={3} />
+              <label style={{ fontWeight: 600, color: "var(--ink)", marginBottom: "8px", display: "block" }}>Example (EN)</label>
+              <textarea 
+                value={form.exampleEn} 
+                onChange={(e) => update("exampleEn", e.target.value)} 
+                rows={3} 
+                style={{ width: "100%", padding: "14px", borderRadius: "14px", border: "1px solid var(--line)", background: "var(--surface-2)", outline: "none", resize: "vertical" }}
+              />
             </div>
             <div className="field">
-              <label>Example 2</label>
-              <textarea value={form.exampleVi} onChange={(e) => update("exampleVi", e.target.value)} rows={3} />
+              <label style={{ fontWeight: 600, color: "var(--ink)", marginBottom: "8px", display: "block" }}>Example (VI)</label>
+              <textarea 
+                value={form.exampleVi} 
+                onChange={(e) => update("exampleVi", e.target.value)} 
+                rows={3} 
+                style={{ width: "100%", padding: "14px", borderRadius: "14px", border: "1px solid var(--line)", background: "var(--surface-2)", outline: "none", resize: "vertical" }}
+              />
             </div>
           </div>
 
           <div className="field">
-            <label>Mnemonic</label>
-            <textarea value={form.mnemonic} onChange={(e) => update("mnemonic", e.target.value)} rows={2} />
+            <label style={{ fontWeight: 600, color: "var(--ink)", marginBottom: "8px", display: "block" }}>Mnemonic (Memory hook)</label>
+            <textarea 
+              value={form.mnemonic} 
+              onChange={(e) => update("mnemonic", e.target.value)} 
+              rows={2} 
+              style={{ width: "100%", padding: "14px", borderRadius: "14px", border: "1px solid var(--line)", background: "var(--surface-2)", outline: "none", resize: "vertical" }}
+            />
           </div>
 
-          <div className="actions">
-            <button type="submit" className="btn primary" disabled={saving}>
-              {saving ? "Saving..." : "Save vocab"}
+          <div className="actions" style={{ display: "flex", gap: "12px", marginTop: "16px", flexWrap: "wrap" }}>
+            <button 
+              type="submit" 
+              className="btn primary" 
+              disabled={saving}
+              style={{ flex: 1, padding: "16px", borderRadius: "16px", fontSize: "1.1rem", background: "var(--accent-emerald)", color: "white", border: "none", fontWeight: 600 }}
+            >
+              {saving ? "Saving..." : "💾 Save Vocabulary"}
             </button>
-            <button type="button" className="btn" onClick={handleAiEnrich} disabled={aiLoading || !canEnrich}>
-              {aiLoading ? "Loading..." : "Auto fill"}
+            <button 
+              type="button" 
+              className="btn primary" 
+              onClick={handleAiEnrich} 
+              disabled={aiLoading || !canEnrich}
+              style={{ flex: 1, padding: "16px", borderRadius: "16px", fontSize: "1.1rem", background: "var(--accent-gradient)", color: "white", border: "none", fontWeight: 600, boxShadow: "0 0 20px rgba(139, 92, 246, 0.4)", animation: aiLoading ? "pulse 1.5s infinite" : "none" }}
+            >
+              {aiLoading ? "✨ AI is working..." : "✨ Auto-Fill with AI"}
             </button>
-            <button type="button" className="btn" onClick={() => setBulkOpen(true)}>
-              Bulk add
+            <button 
+              type="button" 
+              className="btn glass-panel" 
+              onClick={() => setBulkOpen(true)}
+              style={{ padding: "16px 24px", borderRadius: "16px", fontSize: "1.1rem", fontWeight: 600 }}
+            >
+              📋 Bulk Add
             </button>
           </div>
 
-          {saving ? <Spinner small label="Submitting..." /> : null}
+          {saving ? <div style={{ textAlign: "center", marginTop: "16px" }}><Spinner small label="Submitting..." /></div> : null}
         </form>
       </section>
 
@@ -554,125 +604,132 @@ export default function Add({ api, onToast, onStats }) {
         onClose={() => {
           setBulkOpen(false);
         }}
-        className="bulk-modal-card"
+        className="bulk-modal-card glass-panel"
         title="Create flashcards (Bulk)"
         footer={
-          <>
-            <button type="button" className="btn" onClick={resetBulk} disabled={bulkSaving}>
+          <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end", width: "100%" }}>
+            <button type="button" className="btn glass-panel" onClick={resetBulk} disabled={bulkSaving} style={{ padding: "10px 16px", borderRadius: "12px" }}>
               Reset
             </button>
-            <button type="button" className="btn" onClick={() => addBulkRows(5)} disabled={bulkSaving}>
+            <button type="button" className="btn glass-panel" onClick={() => addBulkRows(5)} disabled={bulkSaving} style={{ padding: "10px 16px", borderRadius: "12px" }}>
               +5 rows
             </button>
-            <button type="button" className="btn" onClick={() => setBulkOpen(false)} disabled={bulkSaving}>
+            <button type="button" className="btn glass-panel" onClick={() => setBulkOpen(false)} disabled={bulkSaving} style={{ padding: "10px 16px", borderRadius: "12px" }}>
               Close
             </button>
-            <button type="button" className="btn primary" onClick={saveBulk} disabled={bulkSaving}>
+            <button type="button" className="btn primary" onClick={saveBulk} disabled={bulkSaving} style={{ padding: "10px 24px", borderRadius: "12px", background: "var(--accent-emerald)", color: "white", border: "none", fontWeight: 600 }}>
               {bulkSaving ? "Saving..." : "Save all"}
             </button>
-          </>
+          </div>
         }
       >
-        <div className="form-grid">
-          <div className="field-row three">
+        <div className="form-grid" style={{ padding: "16px 0" }}>
+          <div className="field-row three" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px", marginBottom: "16px" }}>
             <div className="field">
-              <label>Input method</label>
-              <select value={bulkInputMethod} onChange={(e) => setBulkInputMethod(e.target.value)} disabled={bulkSaving}>
+              <label style={{ fontSize: "0.9rem", color: "var(--ink-muted)" }}>Input method</label>
+              <select value={bulkInputMethod} onChange={(e) => setBulkInputMethod(e.target.value)} disabled={bulkSaving} style={{ width: "100%", padding: "10px", borderRadius: "12px", border: "1px solid var(--line)" }}>
                 <option value="typed">typed</option>
                 <option value="pasted">pasted</option>
               </select>
             </div>
-            <div className="field check-line">
-              <input type="checkbox" checked={bulkUseAi} onChange={(e) => setBulkUseAi(e.target.checked)} disabled={bulkSaving || !canUpsert} />
-              <label>Use AI (upsert only)</label>
+            <div className="field check-line" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <input type="checkbox" checked={bulkUseAi} onChange={(e) => setBulkUseAi(e.target.checked)} disabled={bulkSaving || !canUpsert} style={{ width: "18px", height: "18px" }} />
+              <label style={{ fontSize: "0.9rem", color: "var(--ink)" }}>Use AI (upsert only)</label>
             </div>
-            <div className="field check-line">
-              <input type="checkbox" checked={bulkOverwrite} onChange={(e) => setBulkOverwrite(e.target.checked)} disabled={bulkSaving || !canUpsert} />
-              <label>Overwrite existing</label>
+            <div className="field check-line" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <input type="checkbox" checked={bulkOverwrite} onChange={(e) => setBulkOverwrite(e.target.checked)} disabled={bulkSaving || !canUpsert} style={{ width: "18px", height: "18px" }} />
+              <label style={{ fontSize: "0.9rem", color: "var(--ink)" }}>Overwrite existing</label>
             </div>
           </div>
 
-          {!canUpsert ? <p className="muted">Backend has no upsert endpoint. Bulk will call POST /vocab per row.</p> : null}
+          {!canUpsert ? <p className="muted" style={{ marginBottom: "16px" }}>Backend has no upsert endpoint. Bulk will call POST /vocab per row.</p> : null}
 
-          <div className="field">
-            <label>Smart import text</label>
+          <div className="field" style={{ marginBottom: "24px" }}>
+            <label style={{ fontWeight: 600, color: "var(--ink)", marginBottom: "8px", display: "block" }}>Smart import text</label>
             <textarea
               rows={7}
               value={smartImportText}
               onChange={(e) => setSmartImportText(e.target.value)}
               disabled={bulkSaving}
               placeholder={"abound /uh-bound/\nDefinition:\nplentiful, existing in large numbers\nExamples:\nRumors abound about the accident\nOpportunities abound in this industry\nNote:\nFormal usage, common in IELTS Reading"}
+              style={{ width: "100%", padding: "14px", borderRadius: "14px", border: "1px solid var(--line)", background: "var(--surface-2)", outline: "none", resize: "vertical", fontFamily: "var(--font-mono)", fontSize: "0.9rem" }}
             />
-            <div className="actions">
-              <button type="button" className="btn" onClick={applySmartImport} disabled={bulkSaving || !smartImportText.trim()}>
-                Parse to table
+            <div className="actions" style={{ marginTop: "12px" }}>
+              <button type="button" className="btn glass-panel" onClick={applySmartImport} disabled={bulkSaving || !smartImportText.trim()} style={{ padding: "10px 16px", borderRadius: "12px" }}>
+                ✨ Parse to table
               </button>
             </div>
           </div>
 
-          <div className="bulk-grid-wrap">
-            <table className="bulk-table">
+          <div className="bulk-grid-wrap" style={{ overflowX: "auto", borderRadius: "16px", border: "1px solid var(--line)" }}>
+            <table className="bulk-table" style={{ width: "100%", borderCollapse: "collapse", minWidth: "800px" }}>
               <thead>
-                <tr>
-                  <th>#</th>
-                  <th>Term</th>
-                  <th>Definition (split by ; or ,)</th>
-                  <th>Example 1 (EN)</th>
-                  <th>Example 2 (VI)</th>
-                  <th>IPA</th>
-                  <th>Note</th>
+                <tr style={{ background: "var(--surface-3)", textAlign: "left" }}>
+                  <th style={{ padding: "12px 16px", borderBottom: "1px solid var(--line)" }}>#</th>
+                  <th style={{ padding: "12px 16px", borderBottom: "1px solid var(--line)" }}>Term</th>
+                  <th style={{ padding: "12px 16px", borderBottom: "1px solid var(--line)" }}>Definition</th>
+                  <th style={{ padding: "12px 16px", borderBottom: "1px solid var(--line)" }}>Example (EN)</th>
+                  <th style={{ padding: "12px 16px", borderBottom: "1px solid var(--line)" }}>Example (VI)</th>
+                  <th style={{ padding: "12px 16px", borderBottom: "1px solid var(--line)" }}>IPA</th>
+                  <th style={{ padding: "12px 16px", borderBottom: "1px solid var(--line)" }}>Note</th>
                 </tr>
               </thead>
               <tbody>
                 {bulkRows.map((row, idx) => (
-                  <tr key={`bulk-${idx}`}>
-                    <td>{idx + 1}</td>
-                    <td>
+                  <tr key={`bulk-${idx}`} style={{ background: idx % 2 === 0 ? "var(--surface-2)" : "var(--surface)" }}>
+                    <td style={{ padding: "12px 16px", borderBottom: "1px solid var(--line)", color: "var(--ink-muted)" }}>{idx + 1}</td>
+                    <td style={{ padding: "8px", borderBottom: "1px solid var(--line)" }}>
                       <input
                         value={row.term}
                         onChange={(e) => updateBulkRow(idx, "term", e.target.value)}
                         onPaste={(e) => handleBulkPaste(idx, 0, e)}
                         disabled={bulkSaving}
+                        style={{ width: "100%", padding: "8px", borderRadius: "8px", border: "1px solid var(--line)", background: "var(--bg)" }}
                       />
                     </td>
-                    <td>
+                    <td style={{ padding: "8px", borderBottom: "1px solid var(--line)" }}>
                       <input
                         value={row.definition}
                         onChange={(e) => updateBulkRow(idx, "definition", e.target.value)}
                         onPaste={(e) => handleBulkPaste(idx, 1, e)}
                         disabled={bulkSaving}
+                        style={{ width: "100%", padding: "8px", borderRadius: "8px", border: "1px solid var(--line)", background: "var(--bg)" }}
                       />
                     </td>
-                    <td>
+                    <td style={{ padding: "8px", borderBottom: "1px solid var(--line)" }}>
                       <input
                         value={row.example1}
                         onChange={(e) => updateBulkRow(idx, "example1", e.target.value)}
                         onPaste={(e) => handleBulkPaste(idx, 2, e)}
                         disabled={bulkSaving}
+                        style={{ width: "100%", padding: "8px", borderRadius: "8px", border: "1px solid var(--line)", background: "var(--bg)" }}
                       />
                     </td>
-                    <td>
+                    <td style={{ padding: "8px", borderBottom: "1px solid var(--line)" }}>
                       <input
                         value={row.example2}
                         onChange={(e) => updateBulkRow(idx, "example2", e.target.value)}
                         onPaste={(e) => handleBulkPaste(idx, 3, e)}
                         disabled={bulkSaving}
+                        style={{ width: "100%", padding: "8px", borderRadius: "8px", border: "1px solid var(--line)", background: "var(--bg)" }}
                       />
                     </td>
-                    <td>
+                    <td style={{ padding: "8px", borderBottom: "1px solid var(--line)" }}>
                       <input
                         value={row.ipa}
                         onChange={(e) => updateBulkRow(idx, "ipa", e.target.value)}
                         onPaste={(e) => handleBulkPaste(idx, 4, e)}
                         disabled={bulkSaving}
+                        style={{ width: "100%", padding: "8px", borderRadius: "8px", border: "1px solid var(--line)", background: "var(--bg)" }}
                       />
                     </td>
-                    <td>
+                    <td style={{ padding: "8px", borderBottom: "1px solid var(--line)" }}>
                       <input
                         value={row.note}
                         onChange={(e) => updateBulkRow(idx, "note", e.target.value)}
                         onPaste={(e) => handleBulkPaste(idx, 5, e)}
                         disabled={bulkSaving}
+                        style={{ width: "100%", padding: "8px", borderRadius: "8px", border: "1px solid var(--line)", background: "var(--bg)" }}
                       />
                     </td>
                   </tr>
@@ -680,21 +737,23 @@ export default function Add({ api, onToast, onStats }) {
               </tbody>
             </table>
           </div>
-          <p className="muted">Tip: paste tab-separated rows into first cell and table will auto-fill all columns.</p>
+          <p className="muted" style={{ marginTop: "12px", fontSize: "0.9rem" }}>💡 Tip: paste tab-separated rows into first cell and table will auto-fill all columns.</p>
 
-          {bulkSaving ? <Spinner small label="Bulk saving..." /> : null}
+          {bulkSaving ? <div style={{ textAlign: "center", marginTop: "16px" }}><Spinner small label="Bulk saving..." /></div> : null}
 
           {bulkReport ? (
-            <div className="summary-box">
-              <h3>Bulk result</h3>
-              <p>Total: {bulkReport.total}</p>
-              <p>Success: {bulkReport.success}</p>
-              <p>Failed: {bulkReport.failed}</p>
-              <p>Created: {bulkReport.created}</p>
-              <p>Updated: {bulkReport.updated}</p>
-              <p>Re-added: {bulkReport.readded}</p>
+            <div className="summary-box glass-panel" style={{ marginTop: "24px", padding: "20px", borderRadius: "16px" }}>
+              <h3 className="text-gradient" style={{ margin: "0 0 16px 0" }}>Bulk Result</h3>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                <p style={{ margin: 0 }}>Total: <strong>{bulkReport.total}</strong></p>
+                <p style={{ margin: 0, color: "var(--accent-emerald)" }}>Success: <strong>{bulkReport.success}</strong></p>
+                <p style={{ margin: 0, color: "var(--danger)" }}>Failed: <strong>{bulkReport.failed}</strong></p>
+                <p style={{ margin: 0 }}>Created: <strong>{bulkReport.created}</strong></p>
+                <p style={{ margin: 0 }}>Updated: <strong>{bulkReport.updated}</strong></p>
+                <p style={{ margin: 0 }}>Re-added: <strong>{bulkReport.readded}</strong></p>
+              </div>
               {bulkReport.failures.length ? (
-                <ul>
+                <ul style={{ marginTop: "16px", paddingLeft: "20px", color: "var(--danger)" }}>
                   {bulkReport.failures.map((f) => (
                     <li key={`${f.rowNo}-${f.term}`}>
                       Row {f.rowNo} ({f.term}): {f.message}

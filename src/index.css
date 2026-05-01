@@ -1,39 +1,45 @@
-@import url("https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
 
 :root {
-  --font-ui: "Sora", "Segoe UI", sans-serif;
-  --font-mono: "IBM Plex Mono", Consolas, monospace;
+  --font-ui: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", Consolas, monospace;
 
+  /* Premium Light Theme */
   --bg: #f8fafc;
-  --surface: #ffffff;
-  --surface-2: #f2f6fb;
+  --surface: rgba(255, 255, 255, 0.7);
+  --surface-2: rgba(255, 255, 255, 0.9);
   --surface-3: #e5edf8;
 
   --ink: #0f172a;
-  --ink-muted: #475569;
+  --ink-muted: #64748b;
 
-  --line: #d9e3f2;
-  --shadow-soft: 0 8px 18px rgba(15, 23, 42, 0.08);
+  --line: rgba(15, 23, 42, 0.08);
+  --shadow-soft: 0 10px 30px rgba(15, 23, 42, 0.06);
+  --shadow-hover: 0 20px 40px rgba(15, 23, 42, 0.12);
 
   --accent-blue: #3b82f6;
-  --accent-green: #10b981;
+  --accent-purple: #8b5cf6;
+  --accent-emerald: #10b981;
   --accent-orange: #f59e0b;
-  --progress-a: linear-gradient(90deg, #10b981, #3b82f6);
+  --progress-a: linear-gradient(135deg, var(--accent-emerald), var(--accent-blue));
+  --accent-gradient: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
 
   --danger: #ef4444;
 }
 
 body.dark {
-  --bg: #0f172a;
-  --surface: #111c31;
-  --surface-2: #16233e;
-  --surface-3: #22355b;
+  /* Premium Dark Theme */
+  --bg: #030712;
+  --surface: rgba(17, 24, 39, 0.5);
+  --surface-2: rgba(31, 41, 55, 0.6);
+  --surface-3: rgba(55, 65, 81, 0.7);
 
-  --ink: #e2e8f0;
-  --ink-muted: #94a3b8;
+  --ink: #f9fafb;
+  --ink-muted: #9ca3af;
 
-  --line: #294268;
-  --shadow-soft: 0 10px 20px rgba(2, 6, 23, 0.35);
+  --line: rgba(255, 255, 255, 0.08);
+  --shadow-soft: 0 10px 30px rgba(0, 0, 0, 0.4);
+  --shadow-hover: 0 20px 40px rgba(0, 0, 0, 0.6);
 }
 
 body.high-contrast {
@@ -54,13 +60,33 @@ body,
 body {
   font-family: var(--font-ui);
   color: var(--ink);
-  background:
-    radial-gradient(circle at 10% -8%, color-mix(in srgb, var(--accent-blue) 14%, transparent) 0, transparent 32%),
-    radial-gradient(circle at 100% -20%, color-mix(in srgb, var(--accent-green) 11%, transparent) 0, transparent 28%),
-    var(--bg);
-  transition: background 200ms ease, color 200ms ease;
+  background-color: var(--bg);
+  background-image: 
+    radial-gradient(circle at 15% 50%, rgba(59, 130, 246, 0.1) 0%, transparent 40%),
+    radial-gradient(circle at 85% 20%, rgba(139, 92, 246, 0.1) 0%, transparent 40%),
+    radial-gradient(circle at 50% 80%, rgba(16, 185, 129, 0.05) 0%, transparent 40%);
+  background-attachment: fixed;
+  transition: background-color 300ms ease, color 300ms ease;
+  overflow-x: hidden;
 }
 
 a {
   color: inherit;
+  text-decoration: none;
+}
+
+/* Glassmorphism Utilities */
+.glass-panel {
+  background: var(--surface);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-soft);
+}
+
+.text-gradient {
+  background: var(--accent-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }

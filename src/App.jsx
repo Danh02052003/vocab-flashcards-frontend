@@ -490,8 +490,34 @@ function MainApp({ forceStudyLock, initialStudyVocabId, extensionPlan }) {
         {!loading && !error && !authChecking && authSession?.token ? renderPage() : null}
       </main>
 
-      <button type="button" className="fab-add" onClick={() => changePage("add")} disabled={!authSession?.token} style={{ display: authSession?.token && page !== "study-lock" ? "block" : "none" }}>
-        Add
+      <button 
+        type="button" 
+        className="fab-add glass-panel" 
+        onClick={() => changePage("add")} 
+        disabled={!authSession?.token} 
+        style={{ 
+          display: authSession?.token && page !== "study-lock" ? "flex" : "none",
+          alignItems: "center",
+          justifyContent: "center",
+          width: "60px",
+          height: "60px",
+          borderRadius: "30px",
+          fontSize: "1.5rem",
+          background: "var(--accent-gradient)",
+          color: "white",
+          border: "none",
+          boxShadow: "0 4px 20px rgba(139, 92, 246, 0.4)",
+          position: "fixed",
+          bottom: "32px",
+          right: "32px",
+          zIndex: 100,
+          transition: "transform 0.2s ease, box-shadow 0.2s ease",
+          cursor: "pointer"
+        }}
+        onMouseEnter={(e) => { e.currentTarget.style.transform = "scale(1.1)"; e.currentTarget.style.boxShadow = "0 8px 30px rgba(139, 92, 246, 0.6)"; }}
+        onMouseLeave={(e) => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.boxShadow = "0 4px 20px rgba(139, 92, 246, 0.4)"; }}
+      >
+        ➕
       </button>
 
       <Onboarding

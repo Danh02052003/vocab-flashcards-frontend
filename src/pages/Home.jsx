@@ -79,84 +79,89 @@ export default function Home({ api, stats, onNavigate }) {
   }, []);
 
   return (
-    <div className="page-grid one">
-      <section className="card hero-card">
+    <div className="page-grid one" style={{ animation: "fadeIn 0.5s ease" }}>
+      <section className="card hero-card" style={{ background: "var(--surface)", border: "none" }}>
         <div className="hero-left">
-          <h2>Daily Vocabulary Sprint</h2>
-          <p>Short sessions, instant feedback, and consistent streaks for IELTS growth.</p>
-          <div className="quick-grid">
-            <button type="button" className="quick-btn" onClick={() => onNavigate("review")}>
-              <span className="quick-btn-title">Start review</span>
-              <small className="quick-btn-meta">{todayInfo.review} cards due</small>
+          <h2 style={{ fontSize: "2.5rem", marginBottom: "8px" }} className="text-gradient">Ready to level up?</h2>
+          <p style={{ color: "var(--ink-muted)", fontSize: "1.1rem", marginBottom: "24px" }}>
+            Consistency is key. Complete your daily sprint to maintain your streak.
+          </p>
+          
+          <div className="quick-grid" style={{ gridTemplateColumns: "1fr" }}>
+            <button 
+              type="button" 
+              className="quick-btn" 
+              onClick={() => onNavigate("review")}
+              style={{ background: "var(--accent-gradient)", color: "white", padding: "20px" }}
+            >
+              <span className="quick-btn-title" style={{ fontSize: "1.4rem" }}>🔥 Start Review Session</span>
+              <small className="quick-btn-meta" style={{ color: "rgba(255,255,255,0.8)" }}>{todayInfo.review} cards waiting for you</small>
             </button>
-            <button type="button" className="quick-btn" onClick={() => onNavigate("add")}>
-              <span className="quick-btn-title">Add vocab</span>
-              <small className="quick-btn-meta">Fast import + AI assist</small>
+          </div>
+
+          <div className="quick-grid" style={{ marginTop: "16px" }}>
+            <button type="button" className="quick-btn glass-panel" onClick={() => onNavigate("add")}>
+              <span className="quick-btn-title">✨ Add Vocab</span>
+              <small className="quick-btn-meta">AI-assisted import</small>
             </button>
-            <button type="button" className="quick-btn" onClick={() => onNavigate("list")}>
-              <span className="quick-btn-title">Browse cards</span>
-              <small className="quick-btn-meta">Edit tags and examples</small>
-            </button>
-            <button type="button" className="quick-btn" onClick={() => onNavigate("sync")}>
-              <span className="quick-btn-title">Backup sync</span>
-              <small className="quick-btn-meta">Export or import JSON</small>
+            <button type="button" className="quick-btn glass-panel" onClick={() => onNavigate("list")}>
+              <span className="quick-btn-title">📚 Browse Library</span>
+              <small className="quick-btn-meta">Manage your cards</small>
             </button>
           </div>
         </div>
 
-        <div className="hero-right">
-          <div className={`streak-flame ${streakActive ? "active" : ""} ${streakPaletteClass}`}>
-            {fireAnimation && LottieComponent ? (
-              <LottieComponent
-                className="streak-flame-lottie"
-                animationData={fireAnimation}
-                loop
-                autoplay
-                aria-hidden="true"
-              />
-            ) : (
-              <div className="streak-flame-fallback" aria-hidden="true" />
-            )}
-            <div className="streak-flame-count">
-              <span>{stats.streak || 0}</span>
-              <small>day streak</small>
+        <div className="hero-right" style={{ position: "relative" }}>
+          <div className="glass-panel" style={{ padding: "30px", borderRadius: "50%", width: "220px", height: "220px", display: "grid", placeItems: "center", boxShadow: "var(--shadow-hover)" }}>
+            <div className={`streak-flame ${streakActive ? "active" : ""} ${streakPaletteClass}`} style={{ width: "100%", height: "100%", position: "absolute" }}>
+              {fireAnimation && LottieComponent ? (
+                <LottieComponent
+                  className="streak-flame-lottie"
+                  animationData={fireAnimation}
+                  loop
+                  autoplay
+                  aria-hidden="true"
+                />
+              ) : (
+                <div className="streak-flame-fallback" aria-hidden="true" />
+              )}
+            </div>
+            <div className="streak-flame-count" style={{ zIndex: 10 }}>
+              <span style={{ fontSize: "3rem", background: "var(--surface)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.5))" }}>
+                {stats.streak || 0}
+              </span>
+              <small style={{ color: "var(--ink)", fontWeight: "bold", background: "rgba(255,255,255,0.5)", padding: "2px 8px", borderRadius: "12px", backdropFilter: "blur(4px)" }}>Day Streak</small>
             </div>
           </div>
-          <CircleProgress value={stats.accuracy || 0} />
         </div>
       </section>
 
-      <section className="card">
-        <div className="row-between">
-          <h3>Today plan</h3>
-          {loading ? <Spinner small label="Syncing..." /> : null}
+      <section className="card glass-panel" style={{ border: "none" }}>
+        <div className="row-between" style={{ marginBottom: "16px" }}>
+          <h3 style={{ fontSize: "1.2rem", margin: 0, display: "flex", alignItems: "center", gap: "8px" }}>
+            📊 Today's Overview
+            {loading ? <Spinner small /> : null}
+          </h3>
         </div>
-          <div className="stat-list">
-            <div className="stat-item">
-              <span>New today</span>
-            <strong>{todayInfo.todayNew}</strong>
-            </div>
-            <div className="stat-item">
-              <span>Need review</span>
-              <strong>{todayInfo.review}</strong>
-            </div>
-            <div className="stat-item">
-              <span>Total reviewed</span>
-              <strong>{stats.totalReviewed || 0}</strong>
-            </div>
-            <div className="stat-item">
-              <span>New created today</span>
-              <strong>{stats.dailyNewCreatedCount || 0}/5</strong>
-            </div>
-            <div className="stat-item">
-              <span>Study lock today</span>
-              <strong>{stats.dailyStudyLockCompletedCount || 0}/{stats.studyLockTargetPerDay || 5}</strong>
-            </div>
-            <div className="stat-item">
-              <span>Lock interval</span>
-              <strong>{stats.studyLockIntervalMinutes || 45} min</strong>
-            </div>
+        
+        <div className="stat-list" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "16px" }}>
+          <div className="stat-item glass-panel" style={{ background: "transparent", border: "1px solid var(--line)" }}>
+            <span style={{ color: "var(--ink-muted)", fontSize: "0.9rem" }}>New Today</span>
+            <strong style={{ fontSize: "1.5rem" }}>{todayInfo.todayNew}</strong>
           </div>
+          <div className="stat-item glass-panel" style={{ background: "transparent", border: "1px solid var(--line)" }}>
+            <span style={{ color: "var(--ink-muted)", fontSize: "0.9rem" }}>To Review</span>
+            <strong style={{ fontSize: "1.5rem" }}>{todayInfo.review}</strong>
+          </div>
+          <div className="stat-item glass-panel" style={{ background: "transparent", border: "1px solid var(--line)" }}>
+            <span style={{ color: "var(--ink-muted)", fontSize: "0.9rem" }}>Accuracy</span>
+            <strong style={{ fontSize: "1.5rem", color: "var(--accent-emerald)" }}>{stats.accuracy || 0}%</strong>
+          </div>
+          <div className="stat-item glass-panel" style={{ background: "transparent", border: "1px solid var(--line)" }}>
+            <span style={{ color: "var(--ink-muted)", fontSize: "0.9rem" }}>Total Cards</span>
+            <strong style={{ fontSize: "1.5rem" }}>{stats.totalReviewed || 0}</strong>
+          </div>
+        </div>
       </section>
     </div>
   );

@@ -326,52 +326,58 @@ export default function Review({ api, onToast, onSessionComplete, onStats }) {
   };
 
   return (
-    <div className="review-screen page-grid one">
-      <section className="card review-surface">
-        <div className="row-between review-toolbar">
+    <div className="review-screen page-grid one" style={{ animation: "fadeIn 0.5s ease" }}>
+      <section className="card review-surface glass-panel" style={{ border: "none", minHeight: "80vh", display: "flex", flexDirection: "column" }}>
+        <div className="row-between review-toolbar" style={{ marginBottom: "20px" }}>
           <div>
-            <h2>Review session</h2>
-            <p className="muted">Fullscreen focus mode for quick 5-15 minute learning bursts.</p>
+            <h2 className="text-gradient" style={{ margin: "0 0 4px 0" }}>Focus Mode</h2>
+            <p className="muted" style={{ margin: 0, fontSize: "0.95rem" }}>Tap card to flip. Swipe to move.</p>
           </div>
-          <div className="actions">
-            <button type="button" className="btn" onClick={readCurrent} disabled={!current}>
-              Voice
+          <div className="actions" style={{ display: "flex", gap: "8px" }}>
+            <button type="button" className="btn glass-panel" onClick={readCurrent} disabled={!current} style={{ padding: "8px 16px", borderRadius: "20px", border: "1px solid var(--line)" }}>
+              🔊 Voice
             </button>
-            <button type="button" className="btn" onClick={loadSession} disabled={loading}>
-              Reload
+            <button type="button" className="btn glass-panel" onClick={loadSession} disabled={loading} style={{ padding: "8px 16px", borderRadius: "20px", border: "1px solid var(--line)" }}>
+              🔄 Reload
             </button>
           </div>
         </div>
 
-        <div className="review-config">
+        <div className="review-config glass-panel" style={{ padding: "16px", borderRadius: "16px", background: "var(--surface)", border: "1px solid var(--line)", marginBottom: "24px" }}>
           <div className="field">
-            <label>Mode</label>
-            <select value={mode} onChange={(e) => setMode(e.target.value)}>
-              <option value="flip">Flip</option>
-              <option value="mcq">MCQ</option>
+            <label style={{ fontSize: "0.85rem", color: "var(--ink-muted)", marginBottom: "4px", display: "block" }}>Mode</label>
+            <select value={mode} onChange={(e) => setMode(e.target.value)} style={{ width: "100%", padding: "10px", borderRadius: "12px", border: "1px solid var(--line)", background: "var(--bg)", color: "var(--ink)", outline: "none" }}>
+              <option value="flip">Flip Card</option>
+              <option value="mcq">Multiple Choice</option>
               <option value="typing">Typing</option>
             </select>
           </div>
           <div className="field">
-            <label>Direction</label>
-            <select value={questionType} onChange={(e) => setQuestionType(e.target.value)}>
-              <option value="term_to_meaning">Term to meaning</option>
-              <option value="meaning_to_term">Meaning to term</option>
+            <label style={{ fontSize: "0.85rem", color: "var(--ink-muted)", marginBottom: "4px", display: "block" }}>Direction</label>
+            <select value={questionType} onChange={(e) => setQuestionType(e.target.value)} style={{ width: "100%", padding: "10px", borderRadius: "12px", border: "1px solid var(--line)", background: "var(--bg)", color: "var(--ink)", outline: "none" }}>
+              <option value="term_to_meaning">Term → Meaning</option>
+              <option value="meaning_to_term">Meaning → Term</option>
             </select>
           </div>
-          <CircleProgress value={cards.length ? Math.round((Math.min(index, cards.length) / cards.length) * 100) : 0} label="Progress" />
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <CircleProgress value={cards.length ? Math.round((Math.min(index, cards.length) / cards.length) * 100) : 0} label="Progress" />
+          </div>
         </div>
 
-        {loading ? <div className="skeleton-card" /> : null}
-        {error ? <p className="error-line">{error}</p> : null}
+        {loading ? <div className="skeleton-card" style={{ flex: 1, borderRadius: "24px" }} /> : null}
+        {error ? <p className="error-line" style={{ color: "var(--danger)" }}>{error}</p> : null}
 
-        {!loading && !error && cards.length === 0 ? <p>No cards available for today.</p> : null}
+        {!loading && !error && cards.length === 0 ? (
+          <div style={{ flex: 1, display: "grid", placeItems: "center", textAlign: "center" }}>
+            <h3 style={{ color: "var(--ink-muted)", fontSize: "1.5rem" }}>All caught up for today! 🎉</h3>
+          </div>
+        ) : null}
 
         {!loading && !error && current && index < cards.length ? (
-          <div className="review-main">
-            <div className="review-meta">
-              <span className="pill">{current.bucket === "todayNew" ? "Today new" : "Review"}</span>
-              <span className="pill">{index + 1}/{cards.length}</span>
+          <div className="review-main" style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+            <div className="review-meta" style={{ justifyContent: "center", marginBottom: "16px" }}>
+              <span className="pill" style={{ background: "var(--accent-gradient)", color: "white", border: "none" }}>{current.bucket === "todayNew" ? "Today New" : "Review"}</span>
+              <span className="pill glass-panel">{index + 1} / {cards.length}</span>
             </div>
 
             <div
@@ -380,23 +386,36 @@ export default function Review({ api, onToast, onSessionComplete, onStats }) {
               onTouchStart={(e) => setTouchStartX(e.touches?.[0]?.clientX ?? null)}
               onTouchEnd={handleSwipeEnd}
               role="presentation"
+              style={{ flex: 1, minHeight: "350px" }}
             >
-              <div className="flip-face front">
-                <h3>{getPrompt(current, questionType)}</h3>
-                <small>Tap card to flip. Swipe to move.</small>
+              <div className="flip-face front glass-panel" style={{ display: "grid", placeItems: "center", textAlign: "center", border: "none", boxShadow: "var(--shadow-hover)" }}>
+                <h3 style={{ fontSize: "clamp(2rem, 5vw, 4rem)", margin: 0, fontWeight: 700 }}>{getPrompt(current, questionType)}</h3>
               </div>
-              <div className="flip-face back">
-                <h3>{current.term}</h3>
-                <p>{(current.meanings || []).join("; ") || "No meanings"}</p>
-                {current.exampleEn ? <p><strong>EN:</strong> {current.exampleEn}</p> : null}
-                {current.exampleVi ? <p><strong>VI:</strong> {current.exampleVi}</p> : null}
+              <div className="flip-face back glass-panel" style={{ alignContent: "center", border: "none", boxShadow: "var(--shadow-hover)", textAlign: "center" }}>
+                <h3 className="text-gradient" style={{ fontSize: "2.5rem", marginBottom: "16px" }}>{current.term}</h3>
+                <p style={{ fontSize: "1.2rem", color: "var(--ink)" }}>{(current.meanings || []).join("; ") || "No meanings"}</p>
+                {current.exampleEn ? <p style={{ fontSize: "1.1rem", marginTop: "16px", fontStyle: "italic" }}>"{current.exampleEn}"</p> : null}
+                {current.exampleVi ? <p style={{ fontSize: "1.1rem", color: "var(--ink-muted)" }}>{current.exampleVi}</p> : null}
+                
                 {mode === "flip" ? (
-                  <div className="review-memory-actions">
-                    <button type="button" className="btn primary" disabled={submitting} onClick={() => void submitOutcome({ isCorrect: true })}>
-                      I remembered
+                  <div className="review-memory-actions" style={{ justifyContent: "center", marginTop: "32px", gap: "16px" }}>
+                    <button 
+                      type="button" 
+                      className="btn danger glass-panel" 
+                      disabled={submitting} 
+                      onClick={(e) => { e.stopPropagation(); void submitOutcome({ isCorrect: false }); }}
+                      style={{ padding: "16px 32px", borderRadius: "100px", fontSize: "1.1rem", border: "1px solid var(--danger)", color: "var(--danger)", background: "transparent" }}
+                    >
+                      Forgot (1)
                     </button>
-                    <button type="button" className="btn danger" disabled={submitting} onClick={() => void submitOutcome({ isCorrect: false })}>
-                      I forgot
+                    <button 
+                      type="button" 
+                      className="btn primary" 
+                      disabled={submitting} 
+                      onClick={(e) => { e.stopPropagation(); void submitOutcome({ isCorrect: true }); }}
+                      style={{ padding: "16px 32px", borderRadius: "100px", fontSize: "1.1rem", background: "var(--accent-emerald)", color: "white", border: "none" }}
+                    >
+                      Remembered (2)
                     </button>
                   </div>
                 ) : null}
@@ -404,13 +423,13 @@ export default function Review({ api, onToast, onSessionComplete, onStats }) {
             </div>
 
             {mode === "mcq" ? (
-              <div className="mcq-grid">
+              <div className="mcq-grid" style={{ marginTop: "24px" }}>
                 {mcqOptions.map((opt, idx) => (
                   <button
                     key={`${opt}-${idx}`}
                     type="button"
                     className={[
-                      "mcq-btn",
+                      "mcq-btn glass-panel",
                       mcqAnswer === opt ? "active" : "",
                       mcqResolved && mcqAnswer === opt && mcqCorrect ? "mcq-ok" : "",
                       mcqResolved && mcqAnswer === opt && !mcqCorrect ? "mcq-wrong" : "",
@@ -424,6 +443,7 @@ export default function Review({ api, onToast, onSessionComplete, onStats }) {
                       setMcqCorrect(isCorrect);
                       void submitOutcome({ isCorrect, userAnswer: opt });
                     }}
+                    style={{ padding: "16px", fontSize: "1.1rem", textAlign: "center", borderRadius: "16px", border: "1px solid var(--line)" }}
                   >
                     {opt}
                   </button>
@@ -432,13 +452,13 @@ export default function Review({ api, onToast, onSessionComplete, onStats }) {
             ) : null}
 
             {mode === "typing" ? (
-              <div className="typing-wrap">
-                <div className="review-answer-row">
+              <div className="typing-wrap" style={{ marginTop: "24px" }}>
+                <div className="review-answer-row" style={{ background: "var(--surface)", borderRadius: "20px", padding: "8px", border: "1px solid var(--line)" }}>
                   <input
                     className={`review-answer-input ${judgeResult ? (judgeResult.isEquivalent ? "study-input-ok" : "study-input-wrong") : ""}`}
                     value={typingAnswer}
                     onChange={(e) => setTypingAnswer(e.target.value)}
-                    placeholder="Type your answer"
+                    placeholder="Type your answer here..."
                     disabled={submitting}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
@@ -446,49 +466,45 @@ export default function Review({ api, onToast, onSessionComplete, onStats }) {
                         if (!submitting) checkTyping();
                       }
                     }}
+                    style={{ border: "none", background: "transparent", outline: "none", width: "100%" }}
                   />
-                  <button type="button" className="btn review-check-btn" disabled={submitting} onClick={checkTyping}>
+                  <button type="button" className="btn review-check-btn" disabled={submitting} onClick={checkTyping} style={{ background: "var(--accent-gradient)", color: "white", borderRadius: "14px", border: "none" }}>
                     Check
                   </button>
                 </div>
 
                 {judgeResult ? (
-                  <div className={`judge-box ${judgeResult.isEquivalent ? "ok" : "warn"}`}>
-                    <strong>{judgeResult.isEquivalent ? "Great - accepted" : "Near miss / wrong"}</strong>
-                    <span>{judgeResult.reasonShort}</span>
-                    {judgeResult.provider ? <span>provider: {judgeResult.provider}</span> : null}
+                  <div className={`judge-box ${judgeResult.isEquivalent ? "ok" : "warn"}`} style={{ borderRadius: "16px", padding: "16px", marginTop: "16px" }}>
+                    <strong style={{ fontSize: "1.1rem", color: judgeResult.isEquivalent ? "var(--accent-emerald)" : "var(--accent-orange)" }}>
+                      {judgeResult.isEquivalent ? "✨ Great - accepted" : "⚠️ Near miss / wrong"}
+                    </strong>
+                    <span style={{ color: "var(--ink)" }}>{judgeResult.reasonShort}</span>
                     {!judgeResult.isEquivalent ? (
-                      <span>Correct answer: {getCorrectAnswer(current, questionType)}</span>
+                      <span style={{ fontWeight: "bold" }}>Correct answer: {getCorrectAnswer(current, questionType)}</span>
                     ) : null}
                   </div>
                 ) : null}
               </div>
             ) : null}
-            {submitting ? <Spinner small label="Submitting review..." /> : null}
+            {submitting ? <div style={{ textAlign: "center", marginTop: "16px" }}><Spinner small /></div> : null}
           </div>
         ) : null}
 
         {!loading && !error && cards.length > 0 && index >= cards.length ? (
-          <div className={`summary-box ${summary.accuracy >= 80 ? "session-win" : ""}`}>
-            <h3>Session complete</h3>
-            <div className="summary-stats">
-              <CircleProgress value={summary.accuracy} label="Accuracy" />
-              <div>
-                <p>Total reviewed: {summary.total}</p>
-                <p>Grade >= 3: {summary.passed}</p>
-                <p>Need attention: {summary.struggled.length}</p>
+          <div className={`summary-box glass-panel ${summary.accuracy >= 80 ? "session-win" : ""}`} style={{ flex: 1, display: "grid", placeItems: "center", textAlign: "center", border: "none" }}>
+            <div>
+              <h3 className="text-gradient" style={{ fontSize: "2.5rem", marginBottom: "8px" }}>Session Complete!</h3>
+              <p style={{ color: "var(--ink-muted)", marginBottom: "32px", fontSize: "1.2rem" }}>Great job maintaining your streak.</p>
+              
+              <div className="summary-stats" style={{ justifyContent: "center", marginBottom: "32px" }}>
+                <CircleProgress value={summary.accuracy} label="Accuracy" />
+                <div style={{ textAlign: "left", display: "grid", gap: "8px" }}>
+                  <div className="glass-panel" style={{ padding: "8px 16px", borderRadius: "12px", border: "none" }}><strong>{summary.total}</strong> Cards Reviewed</div>
+                  <div className="glass-panel" style={{ padding: "8px 16px", borderRadius: "12px", border: "none" }}><strong>{summary.passed}</strong> Mastered</div>
+                  <div className="glass-panel" style={{ padding: "8px 16px", borderRadius: "12px", border: "none" }}><strong>{summary.struggled.length}</strong> Need Attention</div>
+                </div>
               </div>
             </div>
-
-            {summary.struggled.length > 0 ? (
-              <ul>
-                {summary.struggled.map((item) => (
-                  <li key={item.id}>
-                    {item.term} | grade {item.grade} | lapses {item.lapses} | readd {item.readdCount}
-                  </li>
-                ))}
-              </ul>
-            ) : null}
           </div>
         ) : null}
       </section>
